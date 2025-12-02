@@ -1,0 +1,149 @@
+# Starship Configuration
+# Get editor completions based on the config schema
+"$schema" = 'https://starship.rs/config-schema.json'
+
+# Inserts a blank line between shell prompts
+add_newline = true
+
+# Format string that defines the entire prompt layout
+format = """
+[╭─](bold blue)$username$hostname$directory$git_branch$git_status$docker_context$nodejs$dotnet$python$time
+[╰─](bold blue)$character"""
+
+# Wait 50 milliseconds for starship to check files under the current directory.
+scan_timeout = 50
+
+# Configure the username module
+[username]
+style_user = "bold yellow"
+style_root = "bold red"
+format = "[$user]($style)[@](bold white)"
+disabled = false
+show_always = true
+
+# Configure the hostname module
+[hostname]
+ssh_only = false
+format = "[$hostname](bold green)[ in ](bold white)"
+disabled = false
+
+# Configure the directory module
+[directory]
+style = "bold cyan"
+truncation_length = 3
+truncation_symbol = "…/"
+home_symbol = "~"
+read_only = " 🔒"
+read_only_style = "red"
+truncate_to_repo = false
+
+# Configure the git branch module
+[git_branch]
+symbol = " "
+format = "on [$symbol$branch]($style) "
+style = "bold purple"
+always_show_remote = false
+
+# Configure the git status module
+[git_status]
+format = "([\\[$all_status$ahead_behind\\]]($style) )"
+style = "bold red"
+conflicted = "🏳"
+up_to_date = "✓"
+untracked = "🤷"
+ahead = "⇡${count}"
+diverged = "⇕⇡${ahead_count}⇣${behind_count}"
+behind = "⇣${count}"
+stashed = "📦"
+modified = "📝"
+staged = '[++\($count\)](green)'
+renamed = "👅"
+deleted = "🗑"
+
+# Configure the character module (the prompt symbol)
+[character]
+success_symbol = "[➜](bold green)"
+error_symbol = "[➜](bold red)"
+vicmd_symbol = "[V](bold green)"
+
+# Configure the time module
+[time]
+disabled = false
+format = 'at [$time]($style) '
+style = 'bold yellow'
+time_format = "%I:%M %p"
+
+# Language/Runtime modules
+[nodejs]
+symbol = " "
+format = "via [$symbol($version )]($style)"
+style = "bold green"
+
+[dotnet]
+symbol = ".NET "
+format = "[$symbol($version)(🎯 $tfm )]($style)"
+style = "blue bold"
+
+[python]
+symbol = " "
+format = 'via [${symbol}${pyenv_prefix}(${version} )(\($virtualenv\) )]($style)'
+style = "yellow bold"
+
+[docker_context]
+symbol = " "
+format = "via [$symbol$context]($style) "
+style = "blue bold"
+
+# Package managers
+[package]
+format = "is [$symbol$version]($style) "
+symbol = "📦 "
+style = "208 bold"
+
+# Cloud providers
+[aws]
+format = 'on [$symbol($profile )(\($region\) )(\[$duration\] )]($style)'
+symbol = "  "
+style = "bold blue"
+
+[azure]
+disabled = false
+format = "on [$symbol($subscription)]($style) "
+symbol = "ﴃ "
+style = "blue bold"
+
+# Other useful modules
+[cmd_duration]
+min_time = 2_000
+format = "took [$duration]($style) "
+style = "yellow bold"
+
+[memory_usage]
+disabled = false
+threshold = 70
+format = "via $symbol [${ram}( | ${swap})]($style) "
+style = "bold dimmed red"
+symbol = " "
+
+[battery]
+full_symbol = "🔋 "
+charging_symbol = "⚡️ "
+discharging_symbol = "💀 "
+
+[[battery.display]]
+threshold = 10
+style = "bold red"
+
+[[battery.display]]
+threshold = 30
+style = "bold yellow"
+
+# Disable some modules that might be noisy
+[line_break]
+disabled = false
+
+[status]
+disabled = false
+format = '[\[$symbol$status\]]($style) '
+symbol = "✖"
+style = "bold red"

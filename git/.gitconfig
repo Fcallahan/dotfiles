@@ -1,0 +1,24 @@
+[user]
+	name = FrankCallahan-MC
+	email = Francis.callahan@emsmc.com
+[maintenance]
+	auto = true
+[feature]
+	manyFiles = true
+[core]
+	pager = delta
+[gc]
+	writeCommitGraph = true
+[delta]
+	dark = true
+	side-by-side = true
+	line-numbers = true
+	hyperlinks = true
+[push]
+	autoSetupRemote = true
+[credential "https://github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential

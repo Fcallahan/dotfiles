@@ -1,0 +1,15 @@
+git:
+  paging:
+    colorArg: always
+    pager: delta --dark --paging=never --side-by-side --line-numbers --hyperlinks
+
+gui:
+  # Width of the side panels (files, branches, commits, etc.)
+  # Default is 0.3333 (33% of screen). Lower = more space for main diff panel
+  sidePanelWidth: 0.18  # 18% for side panels, 82% for main diff (ultrawide optimized)
+
+  # You can try these values:
+  # sidePanelWidth: 0.15  # 15% side, 85% main (maximum space)
+  # sidePanelWidth: 0.20  # 20% side, 80% main
+  # sidePanelWidth: 0.25  # 25% side, 75% main
+  # sidePanelWidth: 0.3333  # 33% side, 66% main (default)

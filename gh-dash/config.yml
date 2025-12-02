@@ -1,0 +1,109 @@
+prSections:
+  - title: My Pull Requests
+    filters: is:open author:@me
+    layout:
+      author:
+        width: 15
+      updatedAt:
+        hidden: true
+  - title: Needs My Review
+    filters: is:open review-requested:@me
+    layout:
+      author:
+        width: 15
+      updatedAt:
+        hidden: true
+  - title: Involved
+    filters: is:open involves:@me -author:@me
+    layout:
+      author:
+        width: 15
+      updatedAt:
+        hidden: true
+
+issuesSections:
+  - title: My Issues
+    filters: is:open author:@me
+  - title: Assigned
+    filters: is:open assignee:@me
+
+defaults:
+  preview:
+    open: true
+    width: 60
+  prsLimit: 20
+  issuesLimit: 20
+  view: prs
+  layout:
+    prs:
+      repo:
+        width: 20
+      author:
+        width: 15
+      assignees:
+        hidden: true
+      base:
+        hidden: true
+      lines:
+        hidden: false
+      state:
+        hidden: false
+      ci:
+        hidden: false
+      updatedAt:
+        width: 8
+
+repoPaths:
+  - /home/franciscallahan/code/Work/EMSmart2.0
+  - /home/franciscallahan/code/Work/BR
+
+keybindings:
+  prs:
+    - key: c
+      command: >
+        tmux split-window -h -c '{{.RepoPath}}' 'gh pr checkout {{.PrNumber}} && bash'
+      description: checkout PR in tmux split
+    - key: C
+      command: >
+        gh pr comment {{.PrNumber}} --repo {{.RepoName}}
+      description: comment on PR
+    - key: d
+      command: >
+        gh pr diff {{.PrNumber}} --repo {{.RepoName}} | delta --side-by-side --line-numbers
+      description: view diff (side-by-side)
+    - key: v
+      command: >
+        gh pr view {{.PrNumber}} --repo {{.RepoName}}
+      description: view PR details
+    - key: o
+      command: >
+        gh pr view {{.PrNumber}} --repo {{.RepoName}} --web
+      description: open PR in browser
+    - key: r
+      command: >
+        gh pr review {{.PrNumber}} --repo {{.RepoName}}
+      description: review PR (approve/comment/request changes)
+    - key: m
+      command: >
+        gh pr merge {{.PrNumber}} --repo {{.RepoName}}
+      description: merge PR
+    - key: R
+      command: >
+        gh pr ready {{.PrNumber}} --repo {{.RepoName}}
+      description: mark PR as ready for review
+    - key: X
+      command: >
+        gh pr close {{.PrNumber}} --repo {{.RepoName}}
+      description: close PR
+    - key: W
+      command: >
+        bash -c 'cd "{{.RepoPath}}" && /home/franciscallahan/.local/bin/gh-pr-worktree {{.PrNumber}}'
+      description: checkout PR in worktree and open in Neovim
+
+theme:
+  ui:
+    table:
+      showSeparator: true
+    sectionsShowCount: true
+
+confirmQuit: false
