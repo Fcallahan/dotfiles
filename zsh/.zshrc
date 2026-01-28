@@ -20,13 +20,17 @@ export ZSH="$HOME/.oh-my-zsh"
 
 # Confluence environment variables
 export CONFLUENCE_EMAIL="francis.callahan@emsmc.com"
-export CONFLUENCE_API_TOKEN="REDACTED"
 export CONFLUENCE_SITE="emsmc1.atlassian.net"
 
   export CONFLUENCE_SPACE_ID="3832709162" # Franks
   export CONFLUENCE_PARENT_PAGE_ID="3832709489" # Franks
  # export CONFLUENCE_SPACE_ID="3413835784" # EMServices
  # export CONFLUENCE_PARENT_PAGE_ID="3801939973" # Emservices
+
+# Local secrets and overrides
+if [ -f "$HOME/.zshrc.local" ]; then
+    source "$HOME/.zshrc.local"
+fi
 
 # Set name of the theme to load
 # ZSH_THEME="powerlevel10k/powerlevel10k" # Disabled for Starship
@@ -128,7 +132,7 @@ alias gfp="git fetch && git pull"
 alias gitsubmodules="git submodule update --recursive"
 
 # PR management shortcuts
-alias prlist="gh pr list"
+alias prlist="gh pr list --json number,title,author,state,headRefName --template '{{tablerow \"NUMBER\" \"TITLE\" \"AUTHOR\" \"STATUS\" \"BRANCH\"}}{{range .}}{{tablerow (printf \"#%v\" .number) .title .author.login .state .headRefName}}{{end}}'"
 alias prview="gh pr view"
 alias propen="gh pr view --web"
 alias prcreate="gh pr create"
@@ -206,9 +210,27 @@ mkcd() {
     mkdir -p "$1" && cd "$1"
 }
 
-# Git commit with message  
+# Git commit with message
 gitcommit() {
     git commit -m "$1"
+}
+
+# Convenience: create worktree + new branch from specified base (defaults to main)
+# Usage: wtnew <directory-name> [base-branch]
+wtnew() {
+    if [[ -z "$1" ]]; then
+        echo "Usage: wtnew <directory-name> [base-branch]"
+        echo "Creates worktree with new branch from base-branch (defaults to main)"
+        return 1
+    fi
+
+    local dir_name="$1"
+    local base_branch="${2:-main}"  # Default to 'main' if not provided
+
+    git worktree add -b "$dir_name" "$dir_name" "$base_branch"
+    echo "Created worktree '$dir_name' with new branch from $base_branch"
+    _update_worktree_submodules "$dir_name"
+    cd "$dir_name"
 }
 
 # Find and kill process

@@ -1,0 +1,8 @@
+# Copy to ~/.zshrc.local and fill in secrets/overrides.
+# Keep this file out of git.
+
+export CONFLUENCE_EMAIL=""
+export CONFLUENCE_API_TOKEN=""
+export CONFLUENCE_SITE=""
+# export CONFLUENCE_SPACE_ID=""
+# export CONFLUENCE_PARENT_PAGE_ID=""
