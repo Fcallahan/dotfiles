@@ -77,42 +77,104 @@ Neovim config stays in a separate repository:
 - Target path: `~/.config/nvim`
 - `install.sh` clones it automatically if it does not exist.
 
-## First machine bootstrap
+## New machine checklist (Ubuntu/WSL)
 
-Install base dependencies first:
+Run these commands on a fresh machine to get this dotfiles setup working out of the box.
+
+### 1) Install base packages
 
 ```bash
 sudo apt update
-sudo apt install -y zsh tmux git neovim fzf jq
+sudo apt install -y \
+  curl wget git zsh tmux neovim fzf jq \
+  ca-certificates gnupg lsb-release unzip
 ```
 
-Recommended extras:
+### 2) Install GitHub CLI (gh)
+
+```bash
+sudo mkdir -p -m 755 /etc/apt/keyrings
+wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+  sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null
+sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
+  sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+sudo apt update
+sudo apt install -y gh
+```
+
+### 3) Install prompt + navigation tools
+
+```bash
+# Starship prompt
+curl -sS https://starship.rs/install.sh | sh -s -- -y
+
+# zoxide
+curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh
+```
+
+### 4) Install delta + lazygit
+
+```bash
+# delta (git pager)
+sudo apt install -y git-delta || true
+
+# lazygit (latest release)
+LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | jq -r .tag_name | sed 's/^v//')
+curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz"
+tar xf lazygit.tar.gz lazygit
+sudo install lazygit /usr/local/bin
+rm -f lazygit lazygit.tar.gz
+```
+
+### 5) Install Oh My Zsh + plugins + tmux plugin manager
 
 ```bash
 # Oh My Zsh
 sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
-# Zsh plugins
+# Plugins
 git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
 git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
 
-# Powerlevel10k
+# Theme used by .p10k.zsh
 git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/themes/powerlevel10k
 
-# TPM (tmux plugin manager)
+# tmux plugin manager
 git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-
-# gh-dash extension
-gh extension install dlvhdr/gh-dash
 ```
 
-## Post-install checks
+### 6) Clone dotfiles and run installer
 
 ```bash
-source ~/.zshrc
-tmux
-# then press prefix + I
+git clone https://github.com/Fcallahan/dotfiles.git ~/dotfiles
+cd ~/dotfiles
+chmod +x install.sh
+./install.sh
 ```
+
+### 7) Authenticate GitHub + install gh-dash extension
+
+```bash
+gh auth login
+gh extension install dlvhdr/gh-dash
+gh auth switch -h github.com -u Fcallahan
+```
+
+### 8) Final post-install commands
+
+```bash
+cp ~/dotfiles/zsh/.zshrc.local.example ~/.zshrc.local
+$EDITOR ~/.zshrc.local
+
+chsh -s "$(which zsh)"
+source ~/.zshrc
+
+# install tmux plugins non-interactively
+~/.tmux/plugins/tpm/bin/install_plugins
+```
+
+After this, open a new terminal session and your shell/tmux/git/tooling should match this setup.
 
 If you use multiple GitHub accounts, verify the active one before pushing:
 
