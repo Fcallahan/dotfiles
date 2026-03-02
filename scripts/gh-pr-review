@@ -1,0 +1,462 @@
+#!/usr/bin/env bash
+
+# gh-pr-review: Interactive PR review tool with inline commenting
+# Usage: gh-pr-review <pr-number> [repo]
+
+set -euo pipefail
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Configuration
+TEMP_DIR="${TMPDIR:-/tmp}/gh-pr-review-$$"
+DIFF_FILE="$TEMP_DIR/pr.diff"
+COMMENTS_FILE="$TEMP_DIR/comments.jsonl"
+METADATA_FILE="$TEMP_DIR/metadata.json"
+
+# Cleanup on exit
+trap 'rm -rf "$TEMP_DIR"' EXIT
+
+# Usage
+usage() {
+    cat << EOF
+Usage: gh-pr-review <pr-number> [repo]
+
+Interactive PR review tool with inline commenting capability.
+
+Arguments:
+  pr-number    Pull request number to review
+  repo         Repository in format owner/repo (optional, auto-detected if in git repo)
+
+Keybindings in review mode:
+  gc           Add comment on current line
+  <leader>cc   Add comment on current line (alternative)
+  :w or :x     Save and continue (don't exit yet!)
+  :q           Finish review and submit comments
+
+Examples:
+  gh-pr-review 123
+  gh-pr-review 456 owner/repo
+
+EOF
+    exit 1
+}
+
+# Error handling
+error() {
+    echo -e "${RED}Error: $1${NC}" >&2
+    exit 1
+}
+
+info() {
+    echo -e "${BLUE}ℹ ${NC} $1"
+}
+
+success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+warning() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
+# Check dependencies
+check_dependencies() {
+    local missing=()
+    for cmd in gh nvim jq; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing+=("$cmd")
+        fi
+    done
+
+    if [ ${#missing[@]} -ne 0 ]; then
+        error "Missing required dependencies: ${missing[*]}\nInstall them and try again."
+    fi
+}
+
+# Parse arguments
+if [ $# -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    usage
+fi
+
+PR_NUMBER="$1"
+REPO="${2:-}"
+
+# Validate PR number
+if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+    error "Invalid PR number: $PR_NUMBER"
+fi
+
+check_dependencies
+
+# Get repository if not provided
+if [ -z "$REPO" ]; then
+    info "Detecting repository..."
+    REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null) || \
+        error "Not in a git repository and no repo specified"
+fi
+
+info "Reviewing PR #$PR_NUMBER in $REPO"
+
+# Create temp directory
+mkdir -p "$TEMP_DIR"
+
+# Fetch PR metadata
+info "Fetching PR metadata..."
+gh pr view "$PR_NUMBER" --repo "$REPO" --json \
+    number,title,author,headRefOid,baseRefName,headRefName,files \
+    > "$METADATA_FILE" || error "Failed to fetch PR metadata"
+
+# Extract metadata
+PR_TITLE=$(jq -r '.title' "$METADATA_FILE")
+PR_AUTHOR=$(jq -r '.author.login' "$METADATA_FILE")
+HEAD_SHA=$(jq -r '.headRefOid' "$METADATA_FILE")
+BASE_BRANCH=$(jq -r '.baseRefName' "$METADATA_FILE")
+HEAD_BRANCH=$(jq -r '.headRefName' "$METADATA_FILE")
+
+info "PR: $PR_TITLE"
+info "Author: $PR_AUTHOR"
+info "Branch: $HEAD_BRANCH → $BASE_BRANCH"
+info "Commit: ${HEAD_SHA:0:8}"
+
+# Fetch diff
+info "Fetching diff..."
+gh pr diff "$PR_NUMBER" --repo "$REPO" > "$DIFF_FILE" || error "Failed to fetch diff"
+
+# Initialize empty comments file
+echo -n "" > "$COMMENTS_FILE"
+
+# Create review script for Neovim
+cat > "$TEMP_DIR/review.vim" << 'VIMEOF'
+" PR Review Mode Configuration
+
+" Set filetype to diff for syntax highlighting
+setlocal filetype=diff
+setlocal buftype=nofile
+setlocal bufhidden=wipe
+setlocal noswapfile
+
+" Display settings
+setlocal number
+setlocal nowrap
+setlocal cursorline
+
+" Status line
+let b:pr_comments_count = 0
+setlocal statusline=%#StatusLine#\ PR\ Review\ %#StatusLineNC#\ Comments:\ %{b:pr_comments_count}\
+
+" Parse current line to get file and line number
+function! s:GetLineInfo()
+    let l:current_line = line('.')
+    let l:file_path = ''
+    let l:line_num = 0
+    let l:side = 'RIGHT'
+
+    " Search backwards for the file marker (diff --git or +++ )
+    let l:search_line = l:current_line
+    while l:search_line > 0
+        let l:line_content = getline(l:search_line)
+
+        " Check for +++ b/filename (new file side)
+        if l:line_content =~ '^+++ b/'
+            let l:file_path = substitute(l:line_content, '^+++ b/', '', '')
+            break
+        endif
+
+        " Check for --- a/filename (old file side)
+        if l:line_content =~ '^--- a/'
+            let l:file_path = substitute(l:line_content, '^--- a/', '', '')
+            let l:side = 'LEFT'
+        endif
+
+        let l:search_line -= 1
+    endwhile
+
+    if empty(l:file_path)
+        return {}
+    endif
+
+    " Count line numbers from the @@ marker
+    let l:search_line = l:current_line
+    let l:in_hunk = 0
+    let l:hunk_start = 0
+
+    " Find the nearest @@ hunk header before current line
+    while l:search_line > 0
+        let l:line_content = getline(l:search_line)
+
+        if l:line_content =~ '^@@'
+            " Parse hunk header: @@ -old_start,old_count +new_start,new_count @@
+            let l:hunk_match = matchlist(l:line_content, '^@@ -\d\+\%(,\d\+\)\? +\(\d\+\)')
+            if !empty(l:hunk_match)
+                let l:hunk_start = str2nr(l:hunk_match[1])
+                let l:in_hunk = 1
+                break
+            endif
+        endif
+
+        " Stop if we hit a file marker (we've gone too far)
+        if l:line_content =~ '^\(+++\|---\|diff --git\)'
+            break
+        endif
+
+        let l:search_line -= 1
+    endwhile
+
+    if !l:in_hunk
+        return {}
+    endif
+
+    " Count lines from hunk start to current position
+    let l:line_count = 0
+    let l:search_line += 1
+
+    while l:search_line <= l:current_line
+        let l:line_content = getline(l:search_line)
+
+        " Count lines that exist in the new version (not deletions)
+        if l:line_content !~ '^-' && l:line_content !~ '^@@' && l:line_content !~ '^\(+++\|---\|diff\)'
+            let l:line_count += 1
+        endif
+
+        " Determine side based on line prefix at cursor
+        if l:search_line == l:current_line
+            if l:line_content =~ '^-'
+                let l:side = 'LEFT'
+            elseif l:line_content =~ '^+'
+                let l:side = 'RIGHT'
+            else
+                " Context line - default to RIGHT
+                let l:side = 'RIGHT'
+            endif
+        endif
+
+        let l:search_line += 1
+    endwhile
+
+    let l:line_num = l:hunk_start + l:line_count - 1
+
+    return {
+        \ 'path': l:file_path,
+        \ 'line': l:line_num,
+        \ 'side': l:side
+        \ }
+endfunction
+
+" Add comment function
+function! s:AddComment()
+    let l:info = s:GetLineInfo()
+
+    if empty(l:info)
+        echohl WarningMsg
+        echo "Cannot determine file/line. Make sure cursor is on a diff line."
+        echohl None
+        return
+    endif
+
+    " Show info about where the comment will be placed
+    echohl Question
+    echo "Comment on: " . l:info.path . ":" . l:info.line . " (" . l:info.side . ")"
+    echohl None
+
+    " Get comment text
+    let l:comment = input("Comment: ")
+
+    if empty(l:comment)
+        echohl WarningMsg
+        echo " Cancelled."
+        echohl None
+        return
+    endif
+
+    " Escape the comment for JSON
+    let l:comment_escaped = substitute(l:comment, '"', '\\"', 'g')
+    let l:comment_escaped = substitute(l:comment_escaped, "\n", '\\n', 'g')
+
+    " Append to comments file as JSONL (one JSON object per line)
+    let l:json_line = printf('{"path":"%s","line":%d,"side":"%s","body":"%s"}',
+        \ l:info.path, l:info.line, l:info.side, l:comment_escaped)
+
+    call writefile([l:json_line], $PR_REVIEW_COMMENTS_FILE, 'a')
+
+    " Increment counter
+    let b:pr_comments_count += 1
+
+    " Add a visual marker (sign)
+    execute 'sign define pr_comment text=💬 texthl=Todo'
+    execute 'sign place ' . line('.') . ' line=' . line('.') . ' name=pr_comment file=' . expand('%:p')
+
+    echohl MoreMsg
+    echo " ✓ Comment added! (" . b:pr_comments_count . " total)"
+    echohl None
+endfunction
+
+" Keybindings
+nnoremap <buffer> <silent> gc :call <SID>AddComment()<CR>
+nnoremap <buffer> <silent> <leader>cc :call <SID>AddComment()<CR>
+
+" Help message
+echohl Title
+echo "PR Review Mode"
+echohl None
+echo "Keybindings: gc or <leader>cc = add comment | :q = finish review"
+VIMEOF
+
+# Launch Neovim with the diff
+info "Opening diff in Neovim..."
+echo ""
+warning "Keybindings: 'gc' or '<leader>cc' to add comment on current line, ':q' to finish"
+echo ""
+
+export PR_REVIEW_COMMENTS_FILE="$COMMENTS_FILE"
+export PR_REVIEW_METADATA_FILE="$METADATA_FILE"
+
+nvim -c "source $TEMP_DIR/review.vim" "$DIFF_FILE"
+
+# Count comments
+COMMENT_COUNT=$(wc -l < "$COMMENTS_FILE" | tr -d ' ')
+
+if [ "$COMMENT_COUNT" -eq 0 ]; then
+    warning "No comments added."
+    echo ""
+    read -p "Submit review anyway? [y/N] " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        info "Review cancelled."
+        exit 0
+    fi
+else
+    success "Found $COMMENT_COUNT comment(s) to submit"
+    echo ""
+
+    # Show comments for review
+    info "Comments to be submitted:"
+    echo ""
+
+    while IFS= read -r comment_json; do
+        path=$(echo "$comment_json" | jq -r '.path')
+        line=$(echo "$comment_json" | jq -r '.line')
+        side=$(echo "$comment_json" | jq -r '.side')
+        body=$(echo "$comment_json" | jq -r '.body')
+
+        echo -e "${YELLOW}$path:$line${NC} ${BLUE}($side)${NC}"
+        echo "  $body"
+        echo ""
+    done < "$COMMENTS_FILE"
+
+    # Confirm submission
+    read -p "Submit these comments? [Y/n] " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        info "Review cancelled."
+        exit 0
+    fi
+
+    # Submit comments
+    info "Submitting comments to GitHub..."
+
+    OWNER=$(echo "$REPO" | cut -d'/' -f1)
+    REPO_NAME=$(echo "$REPO" | cut -d'/' -f2)
+
+    FAILED=0
+    SUCCESS_COUNT=0
+
+    while IFS= read -r comment_json; do
+        path=$(echo "$comment_json" | jq -r '.path')
+        line=$(echo "$comment_json" | jq -r '.line')
+        side=$(echo "$comment_json" | jq -r '.side')
+        body=$(echo "$comment_json" | jq -r '.body')
+
+        if gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/$OWNER/$REPO_NAME/pulls/$PR_NUMBER/comments" \
+            -f body="$body" \
+            -f commit_id="$HEAD_SHA" \
+            -f path="$path" \
+            -F line="$line" \
+            -f side="$side" \
+            &> /dev/null; then
+            SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            echo -e "  ${GREEN}✓${NC} $path:$line"
+        else
+            FAILED=$((FAILED + 1))
+            echo -e "  ${RED}✗${NC} $path:$line (failed)"
+        fi
+    done < "$COMMENTS_FILE"
+
+    echo ""
+
+    if [ $FAILED -eq 0 ]; then
+        success "All $SUCCESS_COUNT comment(s) submitted successfully!"
+    else
+        warning "$SUCCESS_COUNT comment(s) submitted, $FAILED failed"
+    fi
+fi
+
+# Prompt for final review status
+echo ""
+info "Submit a final review?"
+echo ""
+echo "  1) Approve"
+echo "  2) Comment (no approval)"
+echo "  3) Request changes"
+echo "  4) Skip (just submit comments)"
+echo ""
+
+read -p "Choice [1-4]: " -n 1 -r REVIEW_CHOICE
+echo ""
+echo ""
+
+case $REVIEW_CHOICE in
+    1)
+        read -p "Approval message (optional): " REVIEW_MSG
+        if gh pr review "$PR_NUMBER" --repo "$REPO" --approve ${REVIEW_MSG:+-b "$REVIEW_MSG"}; then
+            success "PR approved! ✅"
+        else
+            error "Failed to submit approval"
+        fi
+        ;;
+    2)
+        read -p "Review comment (optional): " REVIEW_MSG
+        if [ -n "$REVIEW_MSG" ]; then
+            if gh pr review "$PR_NUMBER" --repo "$REPO" --comment -b "$REVIEW_MSG"; then
+                success "Review comment submitted!"
+            else
+                error "Failed to submit review comment"
+            fi
+        else
+            info "Skipped review comment (empty message)"
+        fi
+        ;;
+    3)
+        read -p "Changes requested message: " REVIEW_MSG
+        if [ -n "$REVIEW_MSG" ]; then
+            if gh pr review "$PR_NUMBER" --repo "$REPO" --request-changes -b "$REVIEW_MSG"; then
+                success "Changes requested! 🔄"
+            else
+                error "Failed to submit change request"
+            fi
+        else
+            warning "Skipped (message required for requesting changes)"
+        fi
+        ;;
+    4|*)
+        info "Skipped final review."
+        ;;
+esac
+
+echo ""
+success "Review complete!"
+
+# Show PR URL
+PR_URL=$(jq -r '.url' "$METADATA_FILE" 2>/dev/null || echo "")
+if [ -n "$PR_URL" ]; then
+    echo ""
+    info "View PR: gh pr view $PR_NUMBER --web"
+fi

@@ -1,11 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Dotfiles Installation Script
-# This script creates symlinks and installs dependencies for a new machine setup
+set -euo pipefail
 
-set -e
-
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -24,6 +20,11 @@ backup_and_link() {
     local src="$1"
     local dest="$2"
 
+    if [ ! -e "$src" ]; then
+        print_warning "Skipping missing source: $src"
+        return
+    fi
+
     if [ -e "$dest" ] && [ ! -L "$dest" ]; then
         mkdir -p "$BACKUP_DIR"
         print_warning "Backing up existing $dest to $BACKUP_DIR/"
@@ -40,43 +41,73 @@ backup_and_link() {
 print_info "Starting dotfiles installation..."
 echo ""
 
-# Create symlinks
 print_info "Creating symlinks..."
 
-backup_and_link "$DOTFILES_DIR/zsh/.zshrc" "$HOME/.zshrc"
-backup_and_link "$DOTFILES_DIR/tmux/.tmux.conf" "$HOME/.tmux.conf"
-backup_and_link "$DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig"
-backup_and_link "$DOTFILES_DIR/starship/starship.toml" "$HOME/.config/starship.toml"
-backup_and_link "$DOTFILES_DIR/lazygit/config.yml" "$HOME/.config/lazygit/config.yml"
-backup_and_link "$DOTFILES_DIR/gh-dash/config.yml" "$HOME/.config/gh-dash/config.yml"
+LINKS=(
+    "zsh/.zshrc:$HOME/.zshrc"
+    "zsh/.zshenv:$HOME/.zshenv"
+    "zsh/.p10k.zsh:$HOME/.p10k.zsh"
+    "zsh/oh-my-zsh-custom/git-worktree-completions.zsh:$HOME/.oh-my-zsh/custom/git-worktree-completions.zsh"
+    "tmux/.tmux.conf:$HOME/.tmux.conf"
+    "git/.gitconfig:$HOME/.gitconfig"
+    "git/ignore:$HOME/.config/git/ignore"
+    "starship/starship.toml:$HOME/.config/starship.toml"
+    "lazygit/config.yml:$HOME/.config/lazygit/config.yml"
+    "lazydocker/config.yml:$HOME/.config/lazydocker/config.yml"
+    "gh-dash/config.yml:$HOME/.config/gh-dash/config.yml"
+    "gh/config.yml:$HOME/.config/gh/config.yml"
+    "gh-news/config.toml:$HOME/.config/gh-news/config.toml"
+    "ideavim/.ideavimrc:$HOME/.ideavimrc"
+    "wsl/.wslgrc:$HOME/.wslgrc"
+    "bash/.bashrc:$HOME/.bashrc"
+    "bash/.profile:$HOME/.profile"
+)
 
-# Link scripts
+for mapping in "${LINKS[@]}"; do
+    src_rel="${mapping%%:*}"
+    dest="${mapping#*:}"
+    backup_and_link "$DOTFILES_DIR/$src_rel" "$dest"
+done
+
 print_info "Installing scripts to ~/.local/bin/..."
 mkdir -p "$HOME/.local/bin"
 for script in "$DOTFILES_DIR/scripts/"*; do
     if [ -f "$script" ]; then
-        name=$(basename "$script")
+        name="$(basename "$script")"
         backup_and_link "$script" "$HOME/.local/bin/$name"
         chmod +x "$HOME/.local/bin/$name"
     fi
 done
 
+if [ -f "$DOTFILES_DIR/zsh/.zshrc.local.example" ] && [ ! -f "$HOME/.zshrc.local" ]; then
+    cp "$DOTFILES_DIR/zsh/.zshrc.local.example" "$HOME/.zshrc.local"
+    print_warning "Created ~/.zshrc.local from template. Add your secrets there."
+fi
+
+NVIM_REPO_URL="https://github.com/Fcallahan/nvim-config.git"
+if [ ! -d "$HOME/.config/nvim/.git" ]; then
+    print_info "Cloning Neovim config..."
+    git clone "$NVIM_REPO_URL" "$HOME/.config/nvim"
+    print_success "Cloned Neovim config to ~/.config/nvim"
+else
+    print_info "Neovim config already exists at ~/.config/nvim (left unchanged)."
+fi
+
 echo ""
 print_info "Checking dependencies..."
 
-# Check for required tools
 MISSING_DEPS=()
-
-command -v zsh &>/dev/null || MISSING_DEPS+=("zsh")
-command -v tmux &>/dev/null || MISSING_DEPS+=("tmux")
-command -v git &>/dev/null || MISSING_DEPS+=("git")
-command -v nvim &>/dev/null || MISSING_DEPS+=("neovim")
-command -v starship &>/dev/null || MISSING_DEPS+=("starship")
-command -v lazygit &>/dev/null || MISSING_DEPS+=("lazygit")
-command -v gh &>/dev/null || MISSING_DEPS+=("gh (GitHub CLI)")
-command -v delta &>/dev/null || MISSING_DEPS+=("delta (git-delta)")
-command -v zoxide &>/dev/null || MISSING_DEPS+=("zoxide")
-command -v fzf &>/dev/null || MISSING_DEPS+=("fzf")
+command -v zsh >/dev/null 2>&1 || MISSING_DEPS+=("zsh")
+command -v tmux >/dev/null 2>&1 || MISSING_DEPS+=("tmux")
+command -v git >/dev/null 2>&1 || MISSING_DEPS+=("git")
+command -v nvim >/dev/null 2>&1 || MISSING_DEPS+=("neovim")
+command -v starship >/dev/null 2>&1 || MISSING_DEPS+=("starship")
+command -v lazygit >/dev/null 2>&1 || MISSING_DEPS+=("lazygit")
+command -v gh >/dev/null 2>&1 || MISSING_DEPS+=("gh (GitHub CLI)")
+command -v delta >/dev/null 2>&1 || MISSING_DEPS+=("delta (git-delta)")
+command -v zoxide >/dev/null 2>&1 || MISSING_DEPS+=("zoxide")
+command -v fzf >/dev/null 2>&1 || MISSING_DEPS+=("fzf")
+command -v jq >/dev/null 2>&1 || MISSING_DEPS+=("jq")
 
 if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     print_warning "Missing dependencies:"
@@ -86,13 +117,11 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     echo ""
 fi
 
-# Check for Oh My Zsh
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
     print_warning "Oh My Zsh not installed"
     echo "  Install: sh -c \"\$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)\""
 fi
 
-# Check for zsh plugins
 if [ ! -d "$HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions" ]; then
     print_warning "zsh-autosuggestions not installed"
     echo "  Install: git clone https://github.com/zsh-users/zsh-autosuggestions \${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions"
@@ -103,27 +132,31 @@ if [ ! -d "$HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting" ]; then
     echo "  Install: git clone https://github.com/zsh-users/zsh-syntax-highlighting.git \${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting"
 fi
 
-# Check for TPM (Tmux Plugin Manager)
+if [ ! -d "$HOME/.oh-my-zsh/custom/themes/powerlevel10k" ]; then
+    print_warning "powerlevel10k theme not installed"
+    echo "  Install: git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
+fi
+
 if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
     print_warning "TPM (Tmux Plugin Manager) not installed"
     echo "  Install: git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm"
     echo "  Then press prefix + I in tmux to install plugins"
 fi
 
-# Check for gh-dash
-if ! command -v gh &>/dev/null || ! gh extension list 2>/dev/null | grep -q "dlvhdr/gh-dash"; then
-    print_warning "gh-dash extension not installed"
-    echo "  Install: gh extension install dlvhdr/gh-dash"
+if command -v gh >/dev/null 2>&1; then
+    if ! gh extension list 2>/dev/null | grep -q "dlvhdr/gh-dash"; then
+        print_warning "gh-dash extension not installed"
+        echo "  Install: gh extension install dlvhdr/gh-dash"
+    fi
 fi
 
 echo ""
 print_success "Dotfiles installation complete!"
 echo ""
 print_info "Next steps:"
-echo "  1. Install any missing dependencies listed above"
+echo "  1. Add secrets to ~/.zshrc.local"
 echo "  2. Restart your shell or run: source ~/.zshrc"
 echo "  3. In tmux, press prefix + I to install plugins"
-echo "  4. Clone nvim config: git clone https://github.com/Fcallahan/nvim-config.git ~/.config/nvim"
 echo ""
 
 if [ -d "$BACKUP_DIR" ]; then

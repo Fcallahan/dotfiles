@@ -1,0 +1,15 @@
+#!/bin/bash
+# Switch to PowerLevel10k theme
+
+# Backup current .zshrc
+cp ~/.zshrc ~/.zshrc.temp
+
+# Remove any existing starship init
+sed -i '/eval.*starship init zsh/d' ~/.zshrc
+
+# Ensure PowerLevel10k theme is set
+sed -i 's/^ZSH_THEME=.*/ZSH_THEME="powerlevel10k\/powerlevel10k"/' ~/.zshrc
+
+echo "✓ Switched to PowerLevel10k theme"
+echo "Run 'source ~/.zshrc' or open a new terminal to see changes"
+echo "Run 'p10k configure' to customize the theme"

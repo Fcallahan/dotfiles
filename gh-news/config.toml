@@ -1,0 +1,11 @@
+# gh-news widget configuration
+auto_refresh_interval = 60
+participating_only = true
+show_read = false
+default_preview_mode = "vertical"
+repos_collapsed = false
+auto_mark_read = true
+max_notifications = 30
+
+# Filter to only show these 4 repos
+default_filter = "EMServices-BillingRules|EMSmart2\\.0|EMStatus|Emsmart2\\.0-Common"

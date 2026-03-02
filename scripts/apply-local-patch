@@ -1,0 +1,57 @@
+#!/usr/bin/env zsh
+
+# Apply local development patch to current EMSmart2.0 worktree
+# Usage: apply-local-patch
+
+PATCH_FILE="$HOME/emsmart-local-dev.patch"
+
+# Colors for output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Check if we're in an EMSmart2.0 directory
+if [[ ! "$(pwd)" =~ "EMSmart2.0" ]]; then
+    echo "${RED}Error: Not in an EMSmart2.0 directory${NC}"
+    echo "Please cd to an EMSmart2.0 worktree first"
+    exit 1
+fi
+
+# Check if patch file exists
+if [[ ! -f "$PATCH_FILE" ]]; then
+    echo "${RED}Error: Patch file not found at $PATCH_FILE${NC}"
+    exit 1
+fi
+
+# Check for unstaged changes
+if [[ -n $(git status -s) ]]; then
+    echo "${YELLOW}Warning: You have uncommitted changes${NC}"
+    echo "Current changes:"
+    git status -s
+    echo ""
+    read "response?Continue anyway? (y/N) "
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+        echo "Aborted"
+        exit 0
+    fi
+fi
+
+# Apply the patch
+echo "${GREEN}Applying local development patch...${NC}"
+if git apply "$PATCH_FILE"; then
+    echo "${GREEN}✓ Patch applied successfully!${NC}"
+    echo ""
+    echo "Modified files:"
+    git status -s
+else
+    echo "${RED}✗ Failed to apply patch${NC}"
+    echo ""
+    echo "This might happen if:"
+    echo "  - The patch is already applied"
+    echo "  - The files have been modified"
+    echo "  - The branch has diverged from the patch base"
+    echo ""
+    echo "Try: git apply --check ~/emsmart-local-dev.patch"
+    exit 1
+fi

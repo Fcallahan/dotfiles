@@ -1,0 +1,28 @@
+#!/bin/bash
+# Interactive theme switcher
+
+echo "🎨 Terminal Theme Switcher"
+echo ""
+echo "Available themes:"
+echo "1) PowerLevel10k (Oh My Zsh theme with icons and git status)"
+echo "2) Starship (Modern, minimal prompt in Rust)"
+echo ""
+read -p "Choose a theme (1 or 2): " choice
+
+case $choice in
+    1)
+        theme-powerlevel10k
+        ;;
+    2)
+        theme-starship
+        ;;
+    *)
+        echo "Invalid choice. Please run again and choose 1 or 2."
+        exit 1
+        ;;
+esac
+
+read -p "Reload shell configuration now? (y/n): " reload
+if [[ $reload =~ ^[Yy]$ ]]; then
+    exec zsh
+fi

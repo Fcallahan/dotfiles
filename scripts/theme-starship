@@ -1,0 +1,20 @@
+#!/bin/bash
+# Switch to Starship theme
+
+# Backup current .zshrc
+cp ~/.zshrc ~/.zshrc.temp
+
+# Disable PowerLevel10k by commenting out the theme
+sed -i 's/^ZSH_THEME=.*/# ZSH_THEME="powerlevel10k\/powerlevel10k" # Disabled for Starship/' ~/.zshrc
+
+# Remove any existing starship init
+sed -i '/eval.*starship init zsh/d' ~/.zshrc
+
+# Add starship init to the end of .zshrc
+echo "" >> ~/.zshrc
+echo "# Starship prompt" >> ~/.zshrc
+echo 'eval "$(starship init zsh)"' >> ~/.zshrc
+
+echo "✓ Switched to Starship theme"
+echo "Run 'source ~/.zshrc' or open a new terminal to see changes"
+echo "Edit ~/.config/starship.toml to customize the theme"

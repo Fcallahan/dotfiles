@@ -1,20 +1,20 @@
 prSections:
-  - title: My Pull Requests
-    filters: is:open author:@me
-    layout:
-      author:
-        width: 15
-      updatedAt:
-        hidden: true
   - title: Needs My Review
-    filters: is:open review-requested:@me
+    filters: is:open review-requested:@me repo:EMS-Management-Consultants/EMServices-BillingRules repo:EMS-Management-Consultants/EMSmart2.0 repo:EMS-Management-Consultants/EMStatus repo:EMS-Management-Consultants/Emsmart2.0-Common
     layout:
       author:
         width: 15
       updatedAt:
         hidden: true
-  - title: Involved
-    filters: is:open involves:@me -author:@me
+  - title: Assigned to Me
+    filters: is:open assignee:@me repo:EMS-Management-Consultants/EMServices-BillingRules repo:EMS-Management-Consultants/EMSmart2.0 repo:EMS-Management-Consultants/EMStatus repo:EMS-Management-Consultants/Emsmart2.0-Common
+    layout:
+      author:
+        width: 15
+      updatedAt:
+        hidden: true
+  - title: My Pull Requests
+    filters: is:open author:@me repo:EMS-Management-Consultants/EMServices-BillingRules repo:EMS-Management-Consultants/EMSmart2.0 repo:EMS-Management-Consultants/EMStatus repo:EMS-Management-Consultants/Emsmart2.0-Common
     layout:
       author:
         width: 15
@@ -31,8 +31,8 @@ defaults:
   preview:
     open: true
     width: 60
-  prsLimit: 20
-  issuesLimit: 20
+  prsLimit: 10
+  issuesLimit: 10
   view: prs
   layout:
     prs:
@@ -54,8 +54,8 @@ defaults:
         width: 8
 
 repoPaths:
-  - /home/franciscallahan/code/Work/EMSmart2.0
-  - /home/franciscallahan/code/Work/BR
+  EMS-Management-Consultants/EMSmart2.0: ~/code/Work/EMSmart2.0
+  EMS-Management-Consultants/EMServices-BillingRules: ~/code/Work/BR
 
 keybindings:
   prs:
@@ -97,7 +97,7 @@ keybindings:
       description: close PR
     - key: W
       command: >
-        bash -c 'cd "{{.RepoPath}}" && /home/franciscallahan/.local/bin/gh-pr-worktree {{.PrNumber}}'
+        bash -c 'cd "{{.RepoPath}}" && "$HOME/.local/bin/gh-pr-worktree" {{.PrNumber}}'
       description: checkout PR in worktree and open in Neovim
 
 theme:

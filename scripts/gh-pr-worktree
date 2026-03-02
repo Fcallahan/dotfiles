@@ -49,8 +49,14 @@ if ! git rev-parse --git-dir > /dev/null 2>&1; then
     exit 1
 fi
 
+# Detect if this is a bare repository
+IS_BARE_REPO=$(git rev-parse --is-bare-repository 2>/dev/null || echo "false")
+
 # Get repo name
-REPO_NAME=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || basename "$(git rev-parse --show-toplevel)")
+REPO_NAME=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || {
+    local git_dir=$(git rev-parse --git-dir 2>/dev/null)
+    basename "$(cd "$git_dir" && pwd)"
+})
 
 print_info "Fetching PR #${PR_NUMBER} from ${REPO_NAME}..."
 
@@ -74,25 +80,51 @@ print_info "Branch: ${BRANCH_NAME}"
 print_info "State: ${PR_STATE}"
 
 # Determine worktree location based on repo structure
-REPO_ROOT=$(git rev-parse --show-toplevel)
-REPO_BASENAME=$(basename "$REPO_ROOT")
+# Get git directory (works in both bare and non-bare repos)
+GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
 
-# Check if repo has a worktrees directory (like EMSmart2.0)
-if [ -d "${REPO_ROOT}/worktrees" ]; then
-    WORKTREE_DIR="${REPO_ROOT}/worktrees/pr-${PR_NUMBER}"
-    print_info "Using existing worktrees/ directory structure"
-# Check if worktrees are directly in repo directory (like BR)
-# This checks if there are existing worktrees in the repo directory
-elif git worktree list | grep -q "${REPO_ROOT}/" && [ $(git worktree list | wc -l) -gt 1 ]; then
+if [ -z "$GIT_DIR" ]; then
+    print_error "Not in a git repository"
+    exit 1
+fi
+
+# Determine repository root
+if [ "$IS_BARE_REPO" = "true" ]; then
+    # In bare repo: git-dir IS the repository root
+    REPO_ROOT=$(cd "$GIT_DIR" && pwd)
+else
+    # In non-bare repo: parent of .git is the root
+    REPO_ROOT=$(cd "$GIT_DIR/.." && pwd)
+fi
+
+REPO_BASENAME=$(basename "$REPO_ROOT")
+CYAN='\033[0;36m'
+
+# Determine worktree directory based on repository type
+if [ "$IS_BARE_REPO" = "true" ]; then
+    # Bare repository: always use root level for PR worktrees
     WORKTREE_DIR="${REPO_ROOT}/pr-${PR_NUMBER}"
+    WORKTREE_TYPE="bare_root_level"
+    print_info "Detected bare repository - using root level for PR worktree"
+elif [ -d "${REPO_ROOT}/worktrees" ]; then
+    # Regular repo with dedicated worktrees/ directory
+    WORKTREE_DIR="${REPO_ROOT}/worktrees/pr-${PR_NUMBER}"
+    WORKTREE_TYPE="regular_worktrees_subdir"
+    print_info "Using existing worktrees/ directory structure"
+elif git worktree list | grep -q "${REPO_ROOT}/" && [ $(git worktree list | wc -l) -gt 1 ]; then
+    # Regular repo with in-directory worktrees (like BR)
+    WORKTREE_DIR="${REPO_ROOT}/pr-${PR_NUMBER}"
+    WORKTREE_TYPE="regular_in_repo"
     print_info "Using in-repo worktree structure"
 else
-    # Default: use .pr-worktrees in home directory
-    WORKTREE_BASE="${HOME}/.pr-worktrees"
-    WORKTREE_DIR="${WORKTREE_BASE}/${REPO_BASENAME}/pr-${PR_NUMBER}"
+    # Fallback to separate directory
+    WORKTREE_DIR="${HOME}/.pr-worktrees/${REPO_BASENAME}/pr-${PR_NUMBER}"
     mkdir -p "$(dirname "$WORKTREE_DIR")"
+    WORKTREE_TYPE="fallback_separate"
     print_info "Using default worktree location"
 fi
+
+echo -e "${CYAN}Repository type:${NC} ${WORKTREE_TYPE}"
 
 # Check if worktree already exists
 if [ -d "$WORKTREE_DIR" ]; then

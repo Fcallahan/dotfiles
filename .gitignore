@@ -1,2 +1,8 @@
 # Local secrets
 zsh/.zshrc.local
+gh/hosts.yml
+
+# Local/temp files
+*.backup
+*.tmp
+*.swp

@@ -1,0 +1,27 @@
+#!/bin/bash
+# Watch for new GitHub notifications and alert
+LAST_COUNT=0
+
+while true; do
+    COUNT=$(gh api notifications --jq 'length' 2>/dev/null || echo "0")
+
+    if [ "$COUNT" -gt "$LAST_COUNT" ]; then
+        # New notification detected
+        DIFF=$((COUNT - LAST_COUNT))
+        TITLE=$(gh api notifications --jq '.[0].subject.title' 2>/dev/null)
+
+        # Try WSLg notification
+        if command -v notify-send &> /dev/null; then
+            notify-send "GitHub: $DIFF new notification(s)" "$TITLE"
+        fi
+
+        # Terminal bell as fallback
+        echo -e "\a"
+
+        # Log to file
+        echo "$(date): New notification - $TITLE" >> ~/.gh-notifications.log
+    fi
+
+    LAST_COUNT=$COUNT
+    sleep 300  # Check every 5 minutes
+done
