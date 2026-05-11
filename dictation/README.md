@@ -29,10 +29,16 @@ Use the PowerShell popup script:
 windows/dictation-cleanup.ps1
 ```
 
-Create a Windows shortcut to run it. The shortcut target should look like this, with the distro name adjusted if needed:
+Create a Windows shortcut to run the hidden launcher. The shortcut target should look like this, with the distro name adjusted if needed:
 
 ```text
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu\home\franciscallahan\dotfiles\windows\dictation-cleanup.ps1"
+wscript.exe "\\wsl.localhost\Ubuntu-24.04\home\franciscallahan\dotfiles\windows\dictation-cleanup-hidden.vbs"
+```
+
+This avoids opening a PowerShell terminal window. If you need to debug startup errors, run the PowerShell script directly:
+
+```text
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu-24.04\home\franciscallahan\dotfiles\windows\dictation-cleanup.ps1"
 ```
 
 Assign the shortcut key:
@@ -47,12 +53,6 @@ Windows shortcut hotkeys usually work when the shortcut is on the Desktop or in 
 shell:startup
 ```
 
-If your dotfiles are still in the implementation worktree, use this script path while testing:
-
-```text
-\\wsl.localhost\Ubuntu\home\franciscallahan\.config\superpowers\worktrees\dotfiles\dictation-cleanup\windows\dictation-cleanup.ps1
-```
-
 ## Optional AutoHotkey setup
 
 If AutoHotkey v2 is available later, you can instead run:
@@ -63,7 +63,7 @@ windows/dictation-cleanup.ahk
 
 ## WSL setup
 
-The AutoHotkey script expects this repo at:
+The Windows popup expects this repo at:
 
 ```bash
 ~/dotfiles
@@ -240,10 +240,10 @@ wsl.exe -l -v
 Try running it manually from PowerShell to see the error:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu\home\franciscallahan\dotfiles\windows\dictation-cleanup.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu-24.04\home\franciscallahan\dotfiles\windows\dictation-cleanup.ps1"
 ```
 
-If your distro is not named `Ubuntu`, replace `Ubuntu` with the name from:
+If your distro is not named `Ubuntu-24.04`, replace `Ubuntu-24.04` with the name from:
 
 ```powershell
 wsl.exe -l -v
