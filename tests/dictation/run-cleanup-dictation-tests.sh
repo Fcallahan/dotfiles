@@ -73,12 +73,31 @@ assert_equals "$polish_output" "please polish EMStatus" "polish mode is accepted
 fake_pi="$TMP_DIR/fake-pi"
 cat >"$fake_pi" <<'FAKEPI'
 #!/usr/bin/env bash
-printf 'fake pi failure\n' >&2
-exit 42
+printf '%s\n' "$@" >"$FAKE_PI_ARGS_FILE"
+if [[ "${FAKE_PI_SHOULD_FAIL:-0}" == "1" ]]; then
+    printf 'fake pi failure\n' >&2
+    exit 42
+fi
+printf 'cleaned by fake pi\n'
 FAKEPI
 chmod +x "$fake_pi"
 
-if printf 'hello' | DICTATION_CLEANUP_PI_BIN="$fake_pi" "$SCRIPT" --mode light >"$TMP_DIR/pi-fail.out" 2>"$TMP_DIR/pi-fail.err"; then
+provider_output="$(printf 'hello' | \
+    FAKE_PI_ARGS_FILE="$TMP_DIR/pi-args.txt" \
+    DICTATION_CLEANUP_PI_BIN="$fake_pi" \
+    DICTATION_CLEANUP_PROVIDER="openrouter" \
+    DICTATION_CLEANUP_MODEL="deepseek/deepseek-v4-flash" \
+    "$SCRIPT" --mode light)"
+assert_equals "$provider_output" "cleaned by fake pi" "pi success returns cleaned output"
+assert_contains "$(cat "$TMP_DIR/pi-args.txt")" "--provider" "pi receives provider flag"
+assert_contains "$(cat "$TMP_DIR/pi-args.txt")" "openrouter" "pi receives openrouter provider"
+assert_contains "$(cat "$TMP_DIR/pi-args.txt")" "deepseek/deepseek-v4-flash" "pi receives configured OpenRouter model"
+
+if printf 'hello' | \
+    FAKE_PI_ARGS_FILE="$TMP_DIR/pi-fail-args.txt" \
+    FAKE_PI_SHOULD_FAIL=1 \
+    DICTATION_CLEANUP_PI_BIN="$fake_pi" \
+    "$SCRIPT" --mode light >"$TMP_DIR/pi-fail.out" 2>"$TMP_DIR/pi-fail.err"; then
     fail "pi failure exits non-zero"
 else
     assert_contains "$(cat "$TMP_DIR/pi-fail.err")" "status 42" "pi failure reports original status"

@@ -234,10 +234,11 @@ Modes:
   polish  Rewrite into clear, natural, professional US English.
 
 Environment:
+  DICTATION_CLEANUP_PROVIDER          Default: openrouter
   DICTATION_CLEANUP_MODEL             Default: deepseek/deepseek-v4-flash
   DICTATION_CLEANUP_THINKING          Default: off
   DICTATION_CLEANUP_PI_BIN            Default: pi
-  DICTATION_CLEANUP_TIMEOUT_SECONDS   Default: 120
+  DICTATION_CLEANUP_TIMEOUT_SECONDS   Default: 300
   DICTATION_CLEANUP_REPLACEMENTS      Default: <repo>/dictation/replacements.tsv
   DICTATION_CLEANUP_VOCABULARY        Default: <repo>/dictation/vocabulary.txt
   DICTATION_CLEANUP_SKIP_LLM          Set to 1/true/yes for deterministic replacement only.
@@ -284,9 +285,10 @@ fi
 REPLACEMENTS_FILE="${DICTATION_CLEANUP_REPLACEMENTS:-$SCRIPT_DIR/replacements.tsv}"
 VOCABULARY_FILE="${DICTATION_CLEANUP_VOCABULARY:-$SCRIPT_DIR/vocabulary.txt}"
 PI_BIN="${DICTATION_CLEANUP_PI_BIN:-pi}"
+PROVIDER="${DICTATION_CLEANUP_PROVIDER:-openrouter}"
 MODEL="${DICTATION_CLEANUP_MODEL:-deepseek/deepseek-v4-flash}"
 THINKING="${DICTATION_CLEANUP_THINKING:-off}"
-TIMEOUT_SECONDS="${DICTATION_CLEANUP_TIMEOUT_SECONDS:-120}"
+TIMEOUT_SECONDS="${DICTATION_CLEANUP_TIMEOUT_SECONDS:-300}"
 
 apply_replacements() {
     local text="$1"
@@ -387,6 +389,7 @@ VOCABULARY="$(load_vocabulary "$VOCABULARY_FILE")"
 PROMPT="$(build_prompt "$MODE" "$REPLACED" "$VOCABULARY")"
 
 if ! OUTPUT="$(timeout "$TIMEOUT_SECONDS" "$PI_BIN" \
+    --provider "$PROVIDER" \
     --model "$MODEL" \
     --thinking "$THINKING" \
     --no-tools \
@@ -732,15 +735,17 @@ command -v pi
 pi --help
 ```
 
-Default model:
+Default provider and model:
 
 ```bash
-deepseek/deepseek-v4-flash
+DICTATION_CLEANUP_PROVIDER=openrouter
+DICTATION_CLEANUP_MODEL=deepseek/deepseek-v4-flash
 ```
 
 Override it in your shell if needed:
 
 ```bash
+export DICTATION_CLEANUP_PROVIDER=openrouter
 export DICTATION_CLEANUP_MODEL=deepseek/deepseek-v4-flash
 export DICTATION_CLEANUP_THINKING=off
 ```

@@ -66,23 +66,24 @@ command -v pi
 pi --help
 ```
 
-Default model:
+Default provider and model:
 
 ```bash
-deepseek/deepseek-v4-flash
+DICTATION_CLEANUP_PROVIDER=openrouter
+DICTATION_CLEANUP_MODEL=deepseek/deepseek-v4-flash
 ```
 
-Configure a DeepSeek API key outside this repo. Either export it from your private shell config:
+Configure an OpenRouter API key outside this repo. Either export it from your private shell config:
 
 ```bash
-export DEEPSEEK_API_KEY="sk-..."
+export OPENROUTER_API_KEY="sk-..."
 ```
 
 Or store it in `~/.pi/agent/auth.json`:
 
 ```json
 {
-  "deepseek": {
+  "openrouter": {
     "type": "api_key",
     "key": "sk-..."
   }
@@ -98,6 +99,7 @@ chmod 600 ~/.pi/agent/auth.json
 Override the cleanup model in your shell if needed:
 
 ```bash
+export DICTATION_CLEANUP_PROVIDER=openrouter
 export DICTATION_CLEANUP_MODEL=deepseek/deepseek-v4-flash
 export DICTATION_CLEANUP_THINKING=off
 ```
@@ -189,13 +191,13 @@ Install or configure `pi` in WSL, or set:
 export DICTATION_CLEANUP_PI_BIN=/path/to/pi
 ```
 
-### `No API key found for deepseek`
+### `No API key found for openrouter`
 
-Set `DEEPSEEK_API_KEY` in your private shell config or add a `deepseek` entry to `~/.pi/agent/auth.json`.
+Set `OPENROUTER_API_KEY` in your private shell config or add an `openrouter` entry to `~/.pi/agent/auth.json`.
 
 ### `402 Insufficient Balance`
 
-The DeepSeek key is recognized, but the DeepSeek account does not have enough balance or credits. Add credits in the DeepSeek dashboard, then retry the same command.
+The OpenRouter key is recognized, but the OpenRouter account or selected upstream model does not have enough balance or credits. Add credits in OpenRouter, choose a free model, or switch models, then retry the same command.
 
 ### Wrong WSL distro
 
