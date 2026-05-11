@@ -4,7 +4,7 @@
 [CmdletBinding()]
 param(
     [string]$WslDistro = "",
-    [string]$WslScript = "~/dotfiles/dictation/cleanup-dictation",
+    [string]$WslScript = "",
     [string]$DefaultMode = "light",
     [string]$Provider = "openrouter",
     [string]$Model = "deepseek/deepseek-v4-flash"
@@ -37,6 +37,32 @@ function ConvertTo-WslPath {
     return "/mnt/$drive/$rest"
 }
 
+function ConvertFrom-WslUncPath {
+    param([Parameter(Mandatory)][string]$Path)
+    $normalized = $Path.Replace('/', '\')
+    if ($normalized -match '^\\\\wsl(?:\.localhost|\$)\\[^\\]+(?<linux>\\.*)$') {
+        return $Matches['linux'].Replace('\', '/')
+    }
+    return $null
+}
+
+function Resolve-WslScriptPath {
+    param([string]$ConfiguredPath)
+
+    if (-not [string]::IsNullOrWhiteSpace($ConfiguredPath)) {
+        return $ConfiguredPath
+    }
+
+    $scriptPath = $PSCommandPath
+    $linuxScriptPath = ConvertFrom-WslUncPath $scriptPath
+    if ($linuxScriptPath) {
+        $repoRoot = [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetDirectoryName($linuxScriptPath)).Replace('\', '/')
+        return "$repoRoot/dictation/cleanup-dictation"
+    }
+
+    return "~/dotfiles/dictation/cleanup-dictation"
+}
+
 function Quote-Bash {
     param([Parameter(Mandatory)][string]$Value)
     if ($Value.StartsWith('~/')) {
@@ -59,9 +85,10 @@ function Invoke-WslCleanup {
     try {
         [System.IO.File]::WriteAllText($tempIn, $Text, [System.Text.UTF8Encoding]::new($false))
         $wslInput = ConvertTo-WslPath $tempIn
+        $resolvedWslScript = Resolve-WslScriptPath $WslScript
         $providerAssignment = "DICTATION_CLEANUP_PROVIDER=" + (Quote-Bash $Provider)
         $modelAssignment = "DICTATION_CLEANUP_MODEL=" + (Quote-Bash $Model)
-        $command = "$providerAssignment $modelAssignment $(Quote-Bash $WslScript) --mode $(Quote-Bash $Mode) < $(Quote-Bash $wslInput)"
+        $command = "$providerAssignment $modelAssignment $(Quote-Bash $resolvedWslScript) --mode $(Quote-Bash $Mode) < $(Quote-Bash $wslInput)"
 
         $arguments = @()
         if ($WslDistro.Trim() -ne "") {
