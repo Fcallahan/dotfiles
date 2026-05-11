@@ -60,6 +60,7 @@ The installer creates symlinks, backs up replaced files, and installs script ent
 - `windows/dictation-cleanup.ahk` — AutoHotkey v2 popup and paste workflow.
 - `windows/dictation-cleanup.ps1` — no-install PowerShell popup and paste workflow.
 - `windows/dictation-cleanup-hidden.vbs` — hidden launcher for the PowerShell popup.
+- `windows/install-dictation-launcher.ps1` — copies launcher files to `%LOCALAPPDATA%` for faster startup.
 
 See `dictation/README.md` for setup and usage.
 

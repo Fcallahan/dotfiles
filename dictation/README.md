@@ -29,16 +29,29 @@ Use the PowerShell popup script:
 windows/dictation-cleanup.ps1
 ```
 
-Create a Windows shortcut to run the hidden launcher. The shortcut target should look like this, with the distro name adjusted if needed:
+For faster startup, first copy the Windows launcher files to a local Windows folder. From PowerShell:
 
-```text
-wscript.exe "\\wsl.localhost\Ubuntu-24.04\home\franciscallahan\dotfiles\windows\dictation-cleanup-hidden.vbs"
+```powershell
+cd "\\wsl.localhost\Ubuntu-24.04\home\franciscallahan\dotfiles\windows"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-dictation-launcher.ps1
 ```
 
-This avoids opening a PowerShell terminal window. If you need to debug startup errors, run the PowerShell script directly:
+The installer copies files to:
 
 ```text
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu-24.04\home\franciscallahan\dotfiles\windows\dictation-cleanup.ps1"
+%LOCALAPPDATA%\DictationCleanup
+```
+
+Create a Windows shortcut to run the hidden local launcher:
+
+```text
+wscript.exe "%LOCALAPPDATA%\DictationCleanup\dictation-cleanup-hidden.vbs"
+```
+
+This avoids opening a PowerShell terminal window and avoids loading the popup from the slower `\\wsl.localhost` path. If you need to debug startup errors, run the local PowerShell script directly:
+
+```text
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\DictationCleanup\dictation-cleanup.ps1"
 ```
 
 Assign the shortcut key:

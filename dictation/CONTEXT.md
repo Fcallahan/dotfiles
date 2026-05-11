@@ -18,8 +18,10 @@ The user prefers this flow:
 
 ## Important files
 
+- `windows/install-dictation-launcher.ps1`
+  - Copies launcher files to `%LOCALAPPDATA%\DictationCleanup` for faster Windows startup.
 - `windows/dictation-cleanup-hidden.vbs`
-  - Hidden Windows launcher. Use this for shortcuts to avoid a visible PowerShell terminal.
+  - Hidden Windows launcher. Use the installed local copy for shortcuts to avoid a visible PowerShell terminal.
 - `windows/dictation-cleanup.ps1`
   - Main Windows popup. Handles UI, clipboard, WSL invocation, focus restore, and paste attempt.
 - `dictation/cleanup-dictation`
@@ -33,10 +35,17 @@ The user prefers this flow:
 
 ## Current shortcut target
 
+First install local launcher files from PowerShell:
+
+```powershell
+cd "\\wsl.localhost\Ubuntu-24.04\home\franciscallahan\dotfiles\windows"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-dictation-launcher.ps1
+```
+
 Use this Windows shortcut target:
 
 ```text
-wscript.exe "\\wsl.localhost\Ubuntu-24.04\home\franciscallahan\dotfiles\windows\dictation-cleanup-hidden.vbs"
+wscript.exe "%LOCALAPPDATA%\DictationCleanup\dictation-cleanup-hidden.vbs"
 ```
 
 Shortcut key:
@@ -48,7 +57,7 @@ Ctrl + Alt + H
 If debugging startup problems, bypass the hidden launcher and run:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu-24.04\home\franciscallahan\dotfiles\windows\dictation-cleanup.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\DictationCleanup\dictation-cleanup.ps1"
 ```
 
 ## Provider and model
