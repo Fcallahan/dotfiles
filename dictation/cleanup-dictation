@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MODE="light"
+
+usage() {
+    cat <<'USAGE'
+Usage: cleanup-dictation [--mode light|polish] [--help]
+
+Read dictated text from stdin, apply work-specific replacements, clean it with
+pi/DeepSeek, and print the final text to stdout.
+
+Modes:
+  light   Preserve wording; fix punctuation, capitalization, grammar, and STT mistakes.
+  polish  Rewrite into clear, natural, professional US English.
+
+Environment:
+  DICTATION_CLEANUP_MODEL             Default: opencode-go/deepseek-v4-flash
+  DICTATION_CLEANUP_THINKING          Default: off
+  DICTATION_CLEANUP_PI_BIN            Default: pi
+  DICTATION_CLEANUP_TIMEOUT_SECONDS   Default: 120
+  DICTATION_CLEANUP_REPLACEMENTS      Default: <repo>/dictation/replacements.tsv
+  DICTATION_CLEANUP_VOCABULARY        Default: <repo>/dictation/vocabulary.txt
+  DICTATION_CLEANUP_SKIP_LLM          Set to 1/true/yes for deterministic replacement only.
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --mode)
+            if [[ $# -lt 2 ]]; then
+                printf 'cleanup-dictation: --mode requires light or polish\n' >&2
+                exit 2
+            fi
+            MODE="$2"
+            shift 2
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            printf 'cleanup-dictation: unknown argument: %s\n' "$1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+case "$MODE" in
+    light|polish) ;;
+    *)
+        printf 'cleanup-dictation: Invalid mode: %s. Expected light or polish.\n' "$MODE" >&2
+        exit 2
+        ;;
+esac
+
+INPUT="$(cat)"
+INPUT="$(printf '%s' "$INPUT" | sed -e 's/[[:space:]]\+$//')"
+if [[ -z "${INPUT//[[:space:]]/}" ]]; then
+    printf 'cleanup-dictation: No input text provided.\n' >&2
+    exit 1
+fi
+
+REPLACEMENTS_FILE="${DICTATION_CLEANUP_REPLACEMENTS:-$SCRIPT_DIR/replacements.tsv}"
+VOCABULARY_FILE="${DICTATION_CLEANUP_VOCABULARY:-$SCRIPT_DIR/vocabulary.txt}"
+PI_BIN="${DICTATION_CLEANUP_PI_BIN:-pi}"
+MODEL="${DICTATION_CLEANUP_MODEL:-opencode-go/deepseek-v4-flash}"
+THINKING="${DICTATION_CLEANUP_THINKING:-off}"
+TIMEOUT_SECONDS="${DICTATION_CLEANUP_TIMEOUT_SECONDS:-120}"
+
+apply_replacements() {
+    local text="$1"
+    local file="$2"
+
+    if [[ ! -f "$file" ]]; then
+        printf '%s' "$text"
+        return 0
+    fi
+
+    DICTATION_REPLACEMENTS_FILE="$file" perl -CSDA -Mutf8 -0pe '
+        BEGIN {
+            our @rules;
+            my $file = $ENV{"DICTATION_REPLACEMENTS_FILE"};
+            if (defined $file && -f $file) {
+                open my $fh, "<:encoding(UTF-8)", $file or die "Cannot open replacements: $file\n";
+                local $/ = "\n";
+                while (my $line = <$fh>) {
+                    chomp $line;
+                    $line =~ s/\r\z//;
+                    next if $line =~ /^\s*$/;
+                    next if $line =~ /^\s*#/;
+                    my ($from, $to) = split /\t/, $line, 2;
+                    next unless defined $from && defined $to && length $from;
+                    push @rules, [$from, $to];
+                }
+            }
+        }
+        for my $rule (@rules) {
+            my ($from, $to) = @$rule;
+            s/(?<![\p{L}\p{N}_])\Q$from\E(?![\p{L}\p{N}_])/$to/gi;
+        }
+    ' <<<"$text"
+}
+
+load_vocabulary() {
+    local file="$1"
+    if [[ ! -f "$file" ]]; then
+        printf '(none configured)'
+        return 0
+    fi
+
+    grep -vE '^\s*($|#)' "$file" | sed 's/^/- /'
+}
+
+build_prompt() {
+    local mode="$1"
+    local text="$2"
+    local vocabulary="$3"
+
+    if [[ "$mode" == "light" ]]; then
+        cat <<PROMPT
+You are cleaning a speech-to-text transcript.
+
+Mode: Light cleanup.
+Preserve my wording and sentence structure as much as possible. Fix punctuation, capitalization, spelling, grammar, and obvious speech-to-text mistakes. Do not make the text more formal unless needed for correctness.
+
+Preserve code, commands, URLs, file paths, issue IDs, product names, and proper names exactly when possible.
+Correct work-specific terms when likely intended. Important vocabulary:
+$vocabulary
+
+Return only the final cleaned text. Do not include markdown, labels, explanations, or quotes.
+
+Transcript:
+$text
+PROMPT
+    else
+        cat <<PROMPT
+You are cleaning a speech-to-text transcript.
+
+Mode: Polish.
+Rewrite into clear, natural, professional US English. Improve flow, grammar, punctuation, and clarity while preserving the original meaning, technical details, and intent.
+
+Preserve code, commands, URLs, file paths, issue IDs, product names, and proper names exactly when possible.
+Correct work-specific terms when likely intended. Important vocabulary:
+$vocabulary
+
+Return only the final cleaned text. Do not include markdown, labels, explanations, or quotes.
+
+Transcript:
+$text
+PROMPT
+    fi
+}
+
+REPLACED="$(apply_replacements "$INPUT" "$REPLACEMENTS_FILE")"
+
+if [[ "${DICTATION_CLEANUP_SKIP_LLM:-0}" =~ ^(1|true|yes)$ ]]; then
+    printf '%s\n' "$REPLACED"
+    exit 0
+fi
+
+if ! command -v "$PI_BIN" >/dev/null 2>&1; then
+    printf 'cleanup-dictation: pi not found. Install/configure pi or set DICTATION_CLEANUP_PI_BIN.\n' >&2
+    exit 127
+fi
+
+VOCABULARY="$(load_vocabulary "$VOCABULARY_FILE")"
+PROMPT="$(build_prompt "$MODE" "$REPLACED" "$VOCABULARY")"
+
+if ! OUTPUT="$(timeout "$TIMEOUT_SECONDS" "$PI_BIN" \
+    --model "$MODEL" \
+    --thinking "$THINKING" \
+    --no-tools \
+    --no-session \
+    --print <<<"$PROMPT")"; then
+    status=$?
+    printf 'cleanup-dictation: pi cleanup failed with status %s.\n' "$status" >&2
+    exit "$status"
+fi
+
+OUTPUT="$(printf '%s' "$OUTPUT" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+if [[ -z "$OUTPUT" ]]; then
+    printf 'cleanup-dictation: pi returned empty output.\n' >&2
+    exit 1
+fi
+
+printf '%s\n' "$OUTPUT"
