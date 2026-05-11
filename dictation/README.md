@@ -21,22 +21,44 @@ It is designed for Windows Voice Typing + WSL. It does not record audio in WSL a
 7. Press `Ctrl+Enter` or click `Clean + Paste`.
 8. The cleaned text is pasted into the app that was focused before the popup opened.
 
-## Windows setup
+## Windows setup without AutoHotkey
 
-Install AutoHotkey v2:
-
-- https://www.autohotkey.com/
-
-Run this script from Windows:
+Use the PowerShell popup script:
 
 ```text
-windows/dictation-cleanup.ahk
+windows/dictation-cleanup.ps1
 ```
 
-To launch at startup, create a shortcut to `windows/dictation-cleanup.ahk` in the Windows Startup folder:
+Create a Windows shortcut to run it. The shortcut target should look like this, with the distro name adjusted if needed:
+
+```text
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu\home\franciscallahan\dotfiles\windows\dictation-cleanup.ps1"
+```
+
+Assign the shortcut key:
+
+```text
+Ctrl + Alt + H
+```
+
+Windows shortcut hotkeys usually work when the shortcut is on the Desktop or in the Start Menu. If you want it to run at login, put the shortcut in the Startup folder:
 
 ```text
 shell:startup
+```
+
+If your dotfiles are still in the implementation worktree, use this script path while testing:
+
+```text
+\\wsl.localhost\Ubuntu\home\franciscallahan\.config\superpowers\worktrees\dotfiles\dictation-cleanup\windows\dictation-cleanup.ps1
+```
+
+## Optional AutoHotkey setup
+
+If AutoHotkey v2 is available later, you can instead run:
+
+```text
+windows/dictation-cleanup.ahk
 ```
 
 ## WSL setup
@@ -208,6 +230,20 @@ WslDistro := "YourDistroName"
 ```
 
 List distro names in PowerShell:
+
+```powershell
+wsl.exe -l -v
+```
+
+### PowerShell script will not start
+
+Try running it manually from PowerShell to see the error:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu\home\franciscallahan\dotfiles\windows\dictation-cleanup.ps1"
+```
+
+If your distro is not named `Ubuntu`, replace `Ubuntu` with the name from:
 
 ```powershell
 wsl.exe -l -v
