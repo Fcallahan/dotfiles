@@ -33,12 +33,16 @@ function ConvertTo-WslPath {
         throw "Only local drive paths can be converted to WSL paths: $fullPath"
     }
     $drive = $Matches[1].ToLowerInvariant()
-    $rest = $Matches[2].Replace('\\', '/')
+    $rest = $Matches[2].Replace('\', '/')
     return "/mnt/$drive/$rest"
 }
 
 function Quote-Bash {
     param([Parameter(Mandatory)][string]$Value)
+    if ($Value.StartsWith('~/')) {
+        $rest = $Value.Substring(2)
+        return "~/" + "'" + $rest.Replace("'", "'\''") + "'"
+    }
     return "'" + $Value.Replace("'", "'\''") + "'"
 }
 
@@ -65,13 +69,14 @@ function Invoke-WslCleanup {
         }
         $arguments += @("bash", "-lc", $command)
 
-        $process = Start-Process -FilePath "wsl.exe" -ArgumentList $arguments -NoNewWindow -Wait -PassThru -RedirectStandardOutput $tempOut -RedirectStandardError $tempErr
+        & wsl.exe @arguments > $tempOut 2> $tempErr
+        $exitCode = $LASTEXITCODE
         $stdout = [System.IO.File]::ReadAllText($tempOut).Trim()
         $stderr = [System.IO.File]::ReadAllText($tempErr).Trim()
 
-        if ($process.ExitCode -ne 0) {
+        if ($exitCode -ne 0) {
             if ([string]::IsNullOrWhiteSpace($stderr)) {
-                $stderr = "wsl.exe exited with code $($process.ExitCode)"
+                $stderr = "wsl.exe exited with code $exitCode"
             }
             throw $stderr
         }
