@@ -70,4 +70,18 @@ polish_output="$(printf 'please polish m status' | \
     "$SCRIPT" --mode polish)"
 assert_equals "$polish_output" "please polish EMStatus" "polish mode is accepted in skip-llm mode"
 
+fake_pi="$TMP_DIR/fake-pi"
+cat >"$fake_pi" <<'FAKEPI'
+#!/usr/bin/env bash
+printf 'fake pi failure\n' >&2
+exit 42
+FAKEPI
+chmod +x "$fake_pi"
+
+if printf 'hello' | DICTATION_CLEANUP_PI_BIN="$fake_pi" "$SCRIPT" --mode light >"$TMP_DIR/pi-fail.out" 2>"$TMP_DIR/pi-fail.err"; then
+    fail "pi failure exits non-zero"
+else
+    assert_contains "$(cat "$TMP_DIR/pi-fail.err")" "status 42" "pi failure reports original status"
+fi
+
 printf 'All cleanup-dictation smoke tests passed.\n'

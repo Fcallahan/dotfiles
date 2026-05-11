@@ -169,13 +169,16 @@ fi
 VOCABULARY="$(load_vocabulary "$VOCABULARY_FILE")"
 PROMPT="$(build_prompt "$MODE" "$REPLACED" "$VOCABULARY")"
 
-if ! OUTPUT="$(timeout "$TIMEOUT_SECONDS" "$PI_BIN" \
+set +e
+OUTPUT="$(timeout "$TIMEOUT_SECONDS" "$PI_BIN" \
     --model "$MODEL" \
     --thinking "$THINKING" \
     --no-tools \
     --no-session \
-    --print <<<"$PROMPT")"; then
-    status=$?
+    --print <<<"$PROMPT")"
+status=$?
+set -e
+if [[ $status -ne 0 ]]; then
     printf 'cleanup-dictation: pi cleanup failed with status %s.\n' "$status" >&2
     exit "$status"
 fi
