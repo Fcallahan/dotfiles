@@ -5,7 +5,7 @@
 param(
     [string]$WslDistro = "",
     [string]$WslScript = "",
-    [string]$DefaultMode = "light",
+    [string]$DefaultMode = "polish",
     [string]$Provider = "openrouter",
     [string]$Model = "qwen/qwen3.5-9b"
 )
@@ -199,12 +199,13 @@ $submit = {
         }
 
         [System.Windows.Forms.Clipboard]::SetText($cleaned)
+        $form.Close()
         if ($previousWindow -ne [IntPtr]::Zero) {
-            [void][NativeWindowFocus]::SetForegroundWindow($previousWindow)
             Start-Sleep -Milliseconds 150
+            [void][NativeWindowFocus]::SetForegroundWindow($previousWindow)
+            Start-Sleep -Milliseconds 500
             [System.Windows.Forms.SendKeys]::SendWait('^v')
         }
-        $form.Close()
     }
     catch {
         $status.Text = "Error: $($_.Exception.Message)"

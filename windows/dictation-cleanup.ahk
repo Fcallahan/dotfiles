@@ -5,7 +5,7 @@
 HotkeyCombo := "^!h" ; Ctrl+Alt+H
 WslDistro := ""      ; Empty means default WSL distro
 WslScript := "~/dotfiles/dictation/cleanup-dictation"
-DefaultMode := "light"
+DefaultMode := "polish"
 PopupWidth := 720
 PopupHeight := 420
 

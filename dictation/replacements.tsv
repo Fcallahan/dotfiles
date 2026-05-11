@@ -1,5 +1,6 @@
 # spoken phrase	Replacement
 m status	EMStatus
+am status	EMStatus
 em status	EMStatus
 em smart	EMSmart
 billing rules	Billing Rules
@@ -9,3 +10,7 @@ signal r	SignalR
 no op hub notification service	NoOpHubNotificationService
 post track change rule	post-track-change-rule
 ems mc	EMS|MC
+julio	Tulio
+eder	Eder
+edder	Eder
+edgar	Eder
