@@ -92,7 +92,7 @@ Default provider and model:
 
 ```bash
 DICTATION_CLEANUP_PROVIDER=openrouter
-DICTATION_CLEANUP_MODEL=deepseek/deepseek-v4-flash
+DICTATION_CLEANUP_MODEL=qwen/qwen3.5-9b
 ```
 
 Configure an OpenRouter API key outside this repo. Either export it from your private shell config:
@@ -122,7 +122,7 @@ Override the cleanup model in your shell if needed:
 
 ```bash
 export DICTATION_CLEANUP_PROVIDER=openrouter
-export DICTATION_CLEANUP_MODEL=deepseek/deepseek-v4-flash
+export DICTATION_CLEANUP_MODEL=qwen/qwen3.5-9b
 export DICTATION_CLEANUP_THINKING=off
 ```
 

@@ -7,7 +7,7 @@ param(
     [string]$WslScript = "",
     [string]$DefaultMode = "light",
     [string]$Provider = "openrouter",
-    [string]$Model = "deepseek/deepseek-v4-flash"
+    [string]$Model = "qwen/qwen3.5-9b"
 )
 
 Set-StrictMode -Version Latest
