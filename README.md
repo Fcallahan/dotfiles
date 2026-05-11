@@ -52,6 +52,15 @@ The installer creates symlinks, backs up replaced files, and installs script ent
 - `scripts/clone-wt`
 - `scripts/tmuxwindownizer`
 
+### Dictation cleanup
+- `dictation/cleanup-dictation` — WSL cleanup script for Windows Voice Typing text.
+- `dictation/replacements.tsv` — editable speech-to-text replacement dictionary.
+- `dictation/vocabulary.txt` — editable work vocabulary for LLM cleanup prompts.
+- `windows/dictation-cleanup.ahk` — AutoHotkey v2 popup and paste workflow.
+- `windows/dictation-cleanup.ps1` — no-install PowerShell popup and paste workflow.
+
+See `dictation/README.md` for setup and usage.
+
 ### Oh My Zsh custom
 - `zsh/oh-my-zsh-custom/git-worktree-completions.zsh`
 
