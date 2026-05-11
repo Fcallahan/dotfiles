@@ -58,6 +58,7 @@ The installer creates symlinks, backs up replaced files, and installs script ent
 - `dictation/vocabulary.txt` — editable work vocabulary for LLM cleanup prompts.
 - `windows/dictation-cleanup.ahk` — AutoHotkey v2 popup and paste workflow.
 - `windows/dictation-cleanup.ps1` — no-install PowerShell popup and paste workflow.
+- `windows/dictation-cleanup-hidden.vbs` — hidden launcher for the PowerShell popup.
 
 See `dictation/README.md` for setup and usage.
 

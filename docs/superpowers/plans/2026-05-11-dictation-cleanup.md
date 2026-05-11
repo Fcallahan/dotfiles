@@ -6,7 +6,7 @@
 
 **Architecture:** AutoHotkey v2 owns the Windows global hotkey, popup UI, clipboard, focus, and paste automation. A WSL bash script owns deterministic replacements, prompt construction, `pi` invocation, and stdout/stderr behavior. Editable vocabulary and replacement files live beside the cleanup script in the dotfiles repo.
 
-**Tech Stack:** AutoHotkey v2, WSL `bash`, `perl`, `timeout`, `pi`, DeepSeek model `deepseek/deepseek-v4-flash`, plain bash smoke tests.
+**Tech Stack:** AutoHotkey v2, WSL `bash`, `perl`, `timeout`, `pi`, DeepSeek model `qwen/qwen3.5-9b`, plain bash smoke tests.
 
 ---
 
@@ -235,7 +235,7 @@ Modes:
 
 Environment:
   DICTATION_CLEANUP_PROVIDER          Default: openrouter
-  DICTATION_CLEANUP_MODEL             Default: deepseek/deepseek-v4-flash
+  DICTATION_CLEANUP_MODEL             Default: qwen/qwen3.5-9b
   DICTATION_CLEANUP_THINKING          Default: off
   DICTATION_CLEANUP_PI_BIN            Default: pi
   DICTATION_CLEANUP_TIMEOUT_SECONDS   Default: 300
@@ -286,7 +286,7 @@ REPLACEMENTS_FILE="${DICTATION_CLEANUP_REPLACEMENTS:-$SCRIPT_DIR/replacements.ts
 VOCABULARY_FILE="${DICTATION_CLEANUP_VOCABULARY:-$SCRIPT_DIR/vocabulary.txt}"
 PI_BIN="${DICTATION_CLEANUP_PI_BIN:-pi}"
 PROVIDER="${DICTATION_CLEANUP_PROVIDER:-openrouter}"
-MODEL="${DICTATION_CLEANUP_MODEL:-deepseek/deepseek-v4-flash}"
+MODEL="${DICTATION_CLEANUP_MODEL:-qwen/qwen3.5-9b}"
 THINKING="${DICTATION_CLEANUP_THINKING:-off}"
 TIMEOUT_SECONDS="${DICTATION_CLEANUP_TIMEOUT_SECONDS:-300}"
 
@@ -739,14 +739,14 @@ Default provider and model:
 
 ```bash
 DICTATION_CLEANUP_PROVIDER=openrouter
-DICTATION_CLEANUP_MODEL=deepseek/deepseek-v4-flash
+DICTATION_CLEANUP_MODEL=qwen/qwen3.5-9b
 ```
 
 Override it in your shell if needed:
 
 ```bash
 export DICTATION_CLEANUP_PROVIDER=openrouter
-export DICTATION_CLEANUP_MODEL=deepseek/deepseek-v4-flash
+export DICTATION_CLEANUP_MODEL=qwen/qwen3.5-9b
 export DICTATION_CLEANUP_THINKING=off
 ```
 

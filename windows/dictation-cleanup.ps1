@@ -7,7 +7,7 @@ param(
     [string]$WslScript = "",
     [string]$DefaultMode = "light",
     [string]$Provider = "openrouter",
-    [string]$Model = "deepseek/deepseek-v4-flash"
+    [string]$Model = "qwen/qwen3.5-9b"
 )
 
 Set-StrictMode -Version Latest
@@ -119,24 +119,36 @@ $previousWindow = [NativeWindowFocus]::GetForegroundWindow()
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Dictation Cleanup"
-$form.Size = New-Object System.Drawing.Size(760, 500)
+$form.Size = New-Object System.Drawing.Size(600, 380)
+$form.MinimumSize = New-Object System.Drawing.Size(520, 320)
 $form.StartPosition = "CenterScreen"
 $form.TopMost = $true
 $form.KeyPreview = $true
+$form.BackColor = [System.Drawing.Color]::FromArgb(248, 249, 251)
+$form.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 
 $instructions = New-Object System.Windows.Forms.Label
-$instructions.AutoSize = $true
-$instructions.Location = New-Object System.Drawing.Point(12, 12)
-$instructions.Text = "Dictate or type text below. Use Windows Voice Typing here, then press Ctrl+Enter."
+$instructions.AutoSize = $false
+$instructions.Location = New-Object System.Drawing.Point(16, 14)
+$instructions.Size = New-Object System.Drawing.Size(552, 36)
+$instructions.ForeColor = [System.Drawing.Color]::FromArgb(55, 65, 81)
+$instructions.Text = "Dictate or type below. Press Ctrl+Enter to clean and paste into the previous app."
 $form.Controls.Add($instructions)
+
+$modeLabel = New-Object System.Windows.Forms.Label
+$modeLabel.AutoSize = $true
+$modeLabel.Location = New-Object System.Drawing.Point(16, 54)
+$modeLabel.ForeColor = [System.Drawing.Color]::FromArgb(75, 85, 99)
+$modeLabel.Text = "Mode"
+$form.Controls.Add($modeLabel)
 
 $mode = New-Object System.Windows.Forms.ComboBox
 $mode.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
 [void]$mode.Items.Add("Light cleanup")
 [void]$mode.Items.Add("Polish")
 $mode.SelectedIndex = if ($DefaultMode -eq "polish") { 1 } else { 0 }
-$mode.Location = New-Object System.Drawing.Point(12, 40)
-$mode.Width = 180
+$mode.Location = New-Object System.Drawing.Point(62, 50)
+$mode.Width = 160
 $form.Controls.Add($mode)
 
 $textBox = New-Object System.Windows.Forms.TextBox
@@ -144,21 +156,28 @@ $textBox.Multiline = $true
 $textBox.AcceptsReturn = $true
 $textBox.AcceptsTab = $true
 $textBox.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
-$textBox.Location = New-Object System.Drawing.Point(12, 72)
-$textBox.Size = New-Object System.Drawing.Size(720, 330)
+$textBox.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$textBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+$textBox.Location = New-Object System.Drawing.Point(16, 84)
+$textBox.Size = New-Object System.Drawing.Size(552, 200)
 $form.Controls.Add($textBox)
 
 $status = New-Object System.Windows.Forms.Label
 $status.AutoSize = $false
-$status.Location = New-Object System.Drawing.Point(12, 417)
-$status.Size = New-Object System.Drawing.Size(590, 28)
+$status.Location = New-Object System.Drawing.Point(16, 298)
+$status.Size = New-Object System.Drawing.Size(408, 28)
+$status.ForeColor = [System.Drawing.Color]::FromArgb(75, 85, 99)
 $status.Text = "Ready"
 $form.Controls.Add($status)
 
 $button = New-Object System.Windows.Forms.Button
 $button.Text = "Clean + Paste"
-$button.Location = New-Object System.Drawing.Point(612, 412)
-$button.Size = New-Object System.Drawing.Size(120, 32)
+$button.Location = New-Object System.Drawing.Point(444, 294)
+$button.Size = New-Object System.Drawing.Size(124, 34)
+$button.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235)
+$button.ForeColor = [System.Drawing.Color]::White
+$button.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$button.FlatAppearance.BorderSize = 0
 $form.Controls.Add($button)
 $form.AcceptButton = $button
 
@@ -198,6 +217,16 @@ $form.Add_KeyDown({
         & $submit
         $_.SuppressKeyPress = $true
     }
+})
+$form.Add_Resize({
+    $client = $form.ClientSize
+    $instructions.Width = [Math]::Max(300, $client.Width - 32)
+    $textBox.Width = [Math]::Max(300, $client.Width - 32)
+    $textBox.Height = [Math]::Max(120, $client.Height - 180)
+    $status.Top = $client.Height - 44
+    $status.Width = [Math]::Max(200, $client.Width - 180)
+    $button.Left = $client.Width - 140
+    $button.Top = $client.Height - 48
 })
 $form.Add_Shown({ $textBox.Focus() })
 
