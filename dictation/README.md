@@ -69,13 +69,36 @@ pi --help
 Default model:
 
 ```bash
-opencode-go/deepseek-v4-flash
+deepseek/deepseek-v4-flash
 ```
 
-Override it in your shell if needed:
+Configure a DeepSeek API key outside this repo. Either export it from your private shell config:
 
 ```bash
-export DICTATION_CLEANUP_MODEL=opencode-go/deepseek-v4-flash
+export DEEPSEEK_API_KEY="sk-..."
+```
+
+Or store it in `~/.pi/agent/auth.json`:
+
+```json
+{
+  "deepseek": {
+    "type": "api_key",
+    "key": "sk-..."
+  }
+}
+```
+
+Keep `~/.pi/agent/auth.json` private:
+
+```bash
+chmod 600 ~/.pi/agent/auth.json
+```
+
+Override the cleanup model in your shell if needed:
+
+```bash
+export DICTATION_CLEANUP_MODEL=deepseek/deepseek-v4-flash
 export DICTATION_CLEANUP_THINKING=off
 ```
 
@@ -165,6 +188,14 @@ Install or configure `pi` in WSL, or set:
 ```bash
 export DICTATION_CLEANUP_PI_BIN=/path/to/pi
 ```
+
+### `No API key found for deepseek`
+
+Set `DEEPSEEK_API_KEY` in your private shell config or add a `deepseek` entry to `~/.pi/agent/auth.json`.
+
+### `402 Insufficient Balance`
+
+The DeepSeek key is recognized, but the DeepSeek account does not have enough balance or credits. Add credits in the DeepSeek dashboard, then retry the same command.
 
 ### Wrong WSL distro
 

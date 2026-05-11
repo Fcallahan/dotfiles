@@ -98,7 +98,7 @@ cleanup-dictation --help
 Environment variables:
 
 ```bash
-DICTATION_CLEANUP_MODEL=opencode-go/deepseek-v4-flash
+DICTATION_CLEANUP_MODEL=deepseek/deepseek-v4-flash
 DICTATION_CLEANUP_THINKING=off
 DICTATION_CLEANUP_PI_BIN=pi
 DICTATION_CLEANUP_TIMEOUT_SECONDS=120
