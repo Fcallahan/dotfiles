@@ -56,6 +56,7 @@ The installer creates symlinks, backs up replaced files, and installs script ent
 - `dictation/cleanup-dictation` — WSL cleanup script for Windows Voice Typing text.
 - `dictation/replacements.tsv` — editable speech-to-text replacement dictionary.
 - `dictation/vocabulary.txt` — editable work vocabulary for LLM cleanup prompts.
+- `dictation/CONTEXT.md` — maintenance context for future AI agents.
 - `windows/dictation-cleanup.ahk` — AutoHotkey v2 popup and paste workflow.
 - `windows/dictation-cleanup.ps1` — no-install PowerShell popup and paste workflow.
 - `windows/dictation-cleanup-hidden.vbs` — hidden launcher for the PowerShell popup.
