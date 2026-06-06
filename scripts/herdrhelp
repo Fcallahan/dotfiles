@@ -1,0 +1,290 @@
+#!/usr/bin/env bash
+# herdrhelp — herdr + shell + dotfiles command reference
+# Usage: herdrhelp [section]
+#   without args: full reference
+#   sections: herdr, shell, git, pr, dotnet, worktree, pi, nvim-review, productivity, scripts
+
+set -euo pipefail
+
+HEADER='\033[1;36m'
+SECTION='\033[1;33m'
+CMD='\033[1;32m'
+ALIAS='\033[1;34m'
+DIM='\033[2;37m'
+RESET='\033[0m'
+BOLD='\033[1m'
+
+show_herdr() {
+  echo ""
+  echo -e "${SECTION}╔══════════════════════════════════════════════════════════════╗"
+  echo -e "║            HERDR — Terminal Workspace Manager                  ║"
+  echo -e "╚══════════════════════════════════════════════════════════════╝${RESET}"
+  echo ""
+  echo -e "${BOLD}Core commands:${RESET}"
+  echo -e "  ${CMD}herdr${RESET}                    Launch or attach to persistent session"
+  echo -e "  ${CMD}herdr status${RESET}             Show client + server status"
+  echo -e "  ${CMD}herdr update${RESET}             Download latest version"
+  echo -e "  ${CMD}herdr server stop${RESET}        Stop the server"
+  echo -e "  ${CMD}herdr server reload-config${RESET}  Reload config.toml"
+  echo ""
+  echo -e "${BOLD}Workspace & tab management:${RESET}"
+  echo -e "  ${CMD}herdr workspace ls${RESET}       List workspaces"
+  echo -e "  ${CMD}herdr workspace create <name>${RESET}  Create workspace"
+  echo -e "  ${CMD}herdr tab ls${RESET}             List tabs"
+  echo -e "  ${CMD}herdr tab create <args>${RESET}  Create tab"
+  echo -e "  ${CMD}herdr tab rename <id> <name>${RESET}  Rename tab"
+  echo -e "  ${CMD}herdr pane get <id>${RESET}      Get pane info"
+  echo ""
+  echo -e "${BOLD}Config keybindings (config.toml):${RESET}"
+  echo -e "  ${DIM}prefix = ctrl+s${RESET}"
+  echo -e "  ${ALIAS}ctrl+alt+h/j/k/l${RESET}          Focus pane left/down/up/right"
+  echo -e "  ${ALIAS}alt+h/j/k/l${RESET}                Focus pane (fallback)"
+  echo -e "  ${ALIAS}prefix+h/j/k/l${RESET}             Focus pane (prefix fallback)"
+  echo -e "  ${ALIAS}prefix+shift+j/k${RESET}           Next/previous workspace"
+  echo -e "  ${ALIAS}prefix+alt+j/k${RESET}             Next/previous agent in sidebar"
+  echo -e "  ${ALIAS}prefix+alt+1..9${RESET}            Focus agent by number"
+  echo -e "  ${ALIAS}prefix+shift+1..9${RESET}          Switch workspace by number"
+  echo -e "  ${ALIAS}prefix+shift+w${RESET}             Rename workspace/sidebar group"
+  echo -e "  ${ALIAS}prefix+shift+t${RESET}             Rename current tab"
+  echo -e "  ${ALIAS}prefix+shift+a${RESET}             Rename focused agent row"
+  echo -e "  ${ALIAS}prefix+[${RESET}                   Edit scrollback (opens in \$EDITOR)"
+  echo -e "  ${ALIAS}prefix+shift+n/c${RESET}           New workspace (prompt for name)"
+  echo -e "  ${ALIAS}prefix+shift+h${RESET}             Open dotfiles workspace"
+  echo -e "  ${ALIAS}prefix+shift+f${RESET}             Fzf-pick a worktree workspace"
+  echo ""
+  echo -e "${BOLD}Script:${RESET}"
+  echo -e "  ${CMD}hsw${RESET}                     Split current workspace into ai/nvim/terminal tabs"
+}
+
+show_shell() {
+  echo ""
+  echo -e "${SECTION}╔══════════════════════════════════════════════════════════════╗"
+  echo -e "║            SHELL — Aliases & Navigation                       ║"
+  echo -e "╚══════════════════════════════════════════════════════════════╝${RESET}"
+  echo ""
+  echo -e "${BOLD}System:${RESET}"
+  echo -e "  ${ALIAS}src${RESET}        Reload ~/.zshrc"
+  echo -e "  ${ALIAS}shell${RESET}      Edit ~/.zshrc in nvim"
+  echo -e "  ${ALIAS}cls${RESET}        Clear screen"
+  echo -e "  ${ALIAS}oc${RESET}         Open current directory in VS Code"
+  echo -e "  ${ALIAS}rider${RESET}      Launch JetBrains Rider"
+  echo ""
+  echo -e "${BOLD}Navigation:${RESET}"
+  echo -e "  ${ALIAS}..${RESET}         cd .."
+  echo -e "  ${ALIAS}...${RESET}        cd ../.."
+  echo -e "  ${ALIAS}home${RESET}       cd ~"
+  echo -e "  ${ALIAS}cd${RESET}         zoxide-aware cd (smart jumps)"
+  echo -e "  ${ALIAS}cde2${RESET}       cd ~/code/Work/EMSmart2.0/"
+  echo -e "  ${ALIAS}cdbr${RESET}       cd ~/code/Work/BR"
+  echo -e "  ${ALIAS}cdwork${RESET}     cd ~/code/Work"
+  echo -e "  ${CMD}mkcd${RESET} <dir>   mkdir + cd"
+  echo ""
+  echo -e "${BOLD}File listing:${RESET}"
+  echo -e "  ${ALIAS}ll${RESET}         ls -lat"
+  echo -e "  ${ALIAS}la${RESET}         ls -la"
+  echo -e "  ${ALIAS}l${RESET}          ls -l"
+  echo -e "  ${ALIAS}md${RESET} <dir>   mkdir -p"
+  echo -e "  ${ALIAS}rd${RESET} <dir>   rmdir"
+}
+
+show_git() {
+  echo ""
+  echo -e "${SECTION}╔══════════════════════════════════════════════════════════════╗"
+  echo -e "║            GIT — Shortcuts & Worktree Helpers                 ║"
+  echo -e "╚══════════════════════════════════════════════════════════════╝${RESET}"
+  echo ""
+  echo -e "${BOLD}Basic git:${RESET}"
+  echo -e "  ${ALIAS}lg${RESET}              Launch lazygit TUI"
+  echo -e "  ${ALIAS}gs${RESET}              git status"
+  echo -e "  ${ALIAS}ga${RESET}              git add"
+  echo -e "  ${ALIAS}gc${RESET}              git commit"
+  echo -e "  ${ALIAS}gp${RESET}              git push"
+  echo -e "  ${ALIAS}gl${RESET}              git log --oneline"
+  echo -e "  ${ALIAS}gd${RESET}              git diff"
+  echo -e "  ${ALIAS}gfp${RESET}             git fetch && git pull"
+  echo -e "  ${ALIAS}gitsubmodules${RESET}   git submodule update --recursive"
+  echo -e "  ${CMD}gitcommit${RESET} <msg>   Quick commit"
+  echo ""
+  echo -e "${BOLD}Worktree helpers:${RESET}"
+  echo -e "  ${ALIAS}wtls${RESET}                 git worktree list"
+  echo -e "  ${CMD}wta${RESET} <path> <branch>    Add worktree at origin/<branch> (detached HEAD)"
+  echo -e "  ${CMD}wtl${RESET} <path> <branch>    Add worktree attached to existing local branch"
+  echo -e "  ${CMD}wtb${RESET} <branch> <path> <ref>  Add worktree with new branch from ref"
+  echo -e "  ${CMD}wtpr${RESET} <branch>          Fetch + track remote branch (for PRs)"
+  echo -e "  ${CMD}wtnew${RESET} <name> [base]    New worktree from origin/main (default)"
+  echo -e "  ${CMD}wtrm${RESET} [path|-i]         Remove worktree with interactive fzf picker"
+  echo -e "  ${CMD}fkill${RESET}                  Interactive fzf process killer"
+}
+
+show_pr() {
+  echo ""
+  echo -e "${SECTION}╔══════════════════════════════════════════════════════════════╗"
+  echo -e "║            PR MANAGEMENT — GitHub Pull Requests                ║"
+  echo -e "╚══════════════════════════════════════════════════════════════╝${RESET}"
+  echo ""
+  echo -e "${BOLD}PR commands:${RESET}"
+  echo -e "  ${ALIAS}prlist${RESET}              List all PRs (table)"
+  echo -e "  ${ALIAS}prview${RESET}              View current branch's PR"
+  echo -e "  ${ALIAS}propen${RESET}              Open PR in browser"
+  echo -e "  ${ALIAS}prcheck${RESET}             Check PR CI status"
+  echo -e "  ${ALIAS}prmerge${RESET}             Merge approved PR"
+  echo -e "  ${CMD}prcreate${RESET} [--web]      Create PR interactively"
+  echo -e "  ${CMD}mkpr${RESET} [title] [body]   Push branch + create PR"
+  echo -e "  ${CMD}gh-pr-worktree${RESET} <#>    Deep review in isolated worktree"
+  echo -e "  ${CMD}gh-pr-review${RESET} <#>      Quick PR review with inline commenting"
+  echo ""
+  echo -e "${BOLD}GitHub auth:${RESET}"
+  echo -e "  ${ALIAS}ghstatus${RESET}            Show authenticated accounts"
+  echo -e "  ${ALIAS}ghswitch${RESET}            Switch GitHub account"
+  echo -e "  ${ALIAS}ghlogin${RESET}             Login to another account"
+  echo ""
+  echo -e "${BOLD}Notifications:${RESET}"
+  echo -e "  ${ALIAS}ghnotify${RESET}            gh notify (unread)"
+  echo -e "  ${ALIAS}ghnews${RESET}              gh news (dashboard)"
+  echo -e "  ${ALIAS}ghnotif${RESET}             Raw notifications JSON"
+  echo -e "  ${ALIAS}ghnotifcount${RESET}        Count unread notifications"
+  echo -e "  ${ALIAS}ghnotifclear${RESET}        Mark all read"
+}
+
+show_dotnet() {
+  echo ""
+  echo -e "${SECTION}╔══════════════════════════════════════════════════════════════╗"
+  echo -e "║            .NET — Build, Test & Run                          ║"
+  echo -e "╚══════════════════════════════════════════════════════════════╝${RESET}"
+  echo ""
+  echo -e "${BOLD}Aliases:${RESET}"
+  echo -e "  ${ALIAS}build${RESET}          dotnet build"
+  echo -e "  ${ALIAS}run${RESET}            dotnet run"
+  echo -e "  ${ALIAS}test${RESET}           dotnet test"
+  echo -e "  ${ALIAS}restore${RESET}        dotnet restore"
+  echo -e "  ${ALIAS}clean${RESET}          dotnet clean"
+  echo -e "  ${ALIAS}seedrules${RESET}      Seed billing rules db"
+  echo ""
+  echo -e "${BOLD}Smart launchers (auto-detect worktree):${RESET}"
+  echo -e "  ${CMD}dotnet-launch${RESET} <dir>  Interactive launch-profile selector"
+  echo -e "  ${CMD}runbr${RESET}              Run BillingRules from current BR worktree"
+  echo -e "  ${CMD}rune2api${RESET}           Run WebApi from current EMSmart2.0 worktree"
+  echo -e "  ${CMD}runworker${RESET}          Run WorkerApp from current EMSmart2.0 worktree"
+}
+
+show_pi() {
+  echo ""
+  echo -e "${SECTION}╔══════════════════════════════════════════════════════════════╗"
+  echo -e "║            PI — AI Coding Agent Commands                     ║"
+  echo -e "╚══════════════════════════════════════════════════════════════╝${RESET}"
+  echo ""
+  echo -e "${BOLD}Aliases:${RESET}"
+  echo -e "  ${ALIAS}pic${RESET}           pi --model openai-codex/gpt-5.5:medium"
+  echo -e "  ${ALIAS}pids${RESET}          pi --model deepseek/deepseek-v4-flash:high"
+  echo -e "  ${ALIAS}piring${RESET}        pi --model openrouter/inclusionai/ling-2.6-1t"
+  echo -e "  ${ALIAS}td${RESET}            Open TODO list in nvim"
+  echo ""
+  echo -e "${BOLD}Pi TUI keybindings:${RESET}"
+  echo -e "  ${DIM}Enter${RESET}           Submit message"
+  echo -e "  ${DIM}Shift+Enter${RESET}     New line in editor"
+  echo -e "  ${DIM}Escape${RESET}          Cancel / abort"
+  echo -e "  ${DIM}Escape ×2${RESET}       Open session tree (/tree)"
+  echo -e "  ${DIM}Ctrl+L${RESET}          Select model"
+  echo -e "  ${DIM}Shift+Tab${RESET}       Cycle thinking level"
+  echo -e "  ${DIM}Ctrl+O${RESET}          Collapse/expand tool output"
+  echo -e "  ${DIM}Alt+Enter${RESET}       Queue follow-up message"
+  echo -e "  ${DIM}Alt+Up${RESET}          Retrieve queued messages"
+  echo -e "  ${DIM}Ctrl+C${RESET}          Clear editor"
+  echo -e "  ${DIM}Ctrl+G${RESET}          Open in external editor"
+  echo -e "  ${DIM}Ctrl+V${RESET}          Paste text (intercepted by Win Terminal)"
+  echo -e "  ${DIM}Alt+V${RESET}           Paste image (use this instead)"
+  echo -e "  ${DIM}@${RESET}               Fuzzy search project files"
+}
+
+show_nvim_review() {
+  echo ""
+  echo -e "${SECTION}╔══════════════════════════════════════════════════════════════╗"
+  echo -e "║            NVIM REVIEW — Inline Diff Commenting               ║"
+  echo -e "╚══════════════════════════════════════════════════════════════╝${RESET}"
+  echo ""
+  echo -e "${BOLD}Pi commands:${RESET}"
+  echo -e "  ${DIM}/nvim-review${RESET}               Review all uncommitted changes"
+  echo -e "  ${DIM}/nvim-review --staged${RESET}      Review staged changes only"
+  echo -e "  ${DIM}/nvim-review --unstaged${RESET}    Review unstaged changes only"
+  echo -e "  ${DIM}/nvim-review --context=N${RESET}   Limit context lines (default: full file)"
+  echo ""
+  echo -e "${BOLD}Nvim keys (in review buffer):${RESET}"
+  echo -e "  ${CMD}<leader>rc${RESET}     Add/edit comment on current line"
+  echo -e "  ${CMD}<leader>rd${RESET}     Delete comment"
+  echo -e "  ${CMD}<leader>rx${RESET}     Toggle resolved/unresolved"
+  echo -e "  ${CMD}<leader>rs${RESET}     Save review"
+  echo -e "  ${CMD}<leader>rR${RESET}     Restart — clear all comments"
+  echo -e "  ${CMD}<leader>rn${RESET}     Jump to next comment"
+  echo -e "  ${CMD}<leader>rp${RESET}     Jump to previous comment"
+  echo -e "  ${CMD}<leader>rq${RESET}     Save and quit"
+  echo -e "  ${CMD}]f${RESET}             Next file in diff"
+  echo -e "  ${CMD}[f${RESET}             Previous file in diff"
+  echo ""
+  echo -e "  ${DIM}Ref: pireview --flow     |     pireview --keys${RESET}"
+}
+
+show_productivity() {
+  echo ""
+  echo -e "${SECTION}╔══════════════════════════════════════════════════════════════╗"
+  echo -e "║            TMUX-PRODUCTIVITY — Dashboard & Tracking           ║"
+  echo -e "╚══════════════════════════════════════════════════════════════╝${RESET}"
+  echo ""
+  echo -e "  ${CMD}tp${RESET}                    Launch dashboard"
+  echo -e "  ${CMD}tmux-prod${RESET}             Launch dashboard (alias)"
+  echo -e "  ${CMD}tp-status${RESET}             Today's score & stats"
+  echo -e "  ${CMD}tp-inject${RESET}             Inject hooks into all tmux zsh panes"
+  echo -e "  ${CMD}tp-import${RESET}             Import zsh history into events log"
+  echo -e "  ${CMD}tp-install${RESET}            Run installer"
+  echo ""
+  echo -e "${BOLD}Other:${RESET}"
+  echo -e "  ${ALIAS}lzd${RESET}                 Launch lazydocker"
+  echo -e "  ${ALIAS}patchlocal${RESET}          Apply local dev patch to EMSmart2.0"
+  echo -e "  ${ALIAS}uri-encode${RESET}          URL-encode a string"
+  echo -e "  ${CMD}apply-local-patch${RESET}     Patch script in ~/.local/bin/"
+  echo -e "  ${CMD}gh-notification-watch${RESET} Auto-watch notifications (tmux daemon)"
+}
+
+show_help() {
+  echo ""
+  echo -e "${HEADER}╔════════════════════════════════════════════════════════════════╗"
+  echo -e "║              HERDRHELP — Command Reference                     ║"
+  echo -e "╚════════════════════════════════════════════════════════════════╝${RESET}"
+  echo ""
+  echo -e "Usage: ${CMD}herdrhelp${RESET} [section]"
+  echo ""
+  echo -e "Available sections:"
+  echo -e "  ${CMD}herdr${RESET}         Herdr terminal workspace manager"
+  echo -e "  ${CMD}shell${RESET}         Shell aliases, navigation, system commands"
+  echo -e "  ${CMD}git${RESET}           Git shortcuts & worktree helpers"
+  echo -e "  ${CMD}pr${RESET}            PR management & GitHub notifications"
+  echo -e "  ${CMD}dotnet${RESET}        .NET build, test, run & smart launchers"
+  echo -e "  ${CMD}pi${RESET}            Pi agent commands & TUI keybindings"
+  echo -e "  ${CMD}nvim-review${RESET}   Nvim diff review (pi_review.lua)"
+  echo -e "  ${CMD}productivity${RESET}  tmux-productivity dashboard & tools"
+  echo ""
+  echo -e "  ${DIM}With no arguments, shows all sections.${RESET}"
+  echo ""
+}
+
+case "${1:-}" in
+  herdr|h)          show_herdr ;;
+  shell|sh)         show_shell ;;
+  git|g)            show_git; show_pr ;;
+  pr|prs)           show_pr ;;
+  dotnet|net|dn)    show_dotnet ;;
+  pi|p)             show_pi ;;
+  nvim-review|rev|r) show_nvim_review ;;
+  productivity|prod|tp) show_productivity ;;
+  help|--help|-h)   show_help ;;
+  *)
+    show_help
+    show_herdr
+    show_shell
+    show_git
+    show_pr
+    show_dotnet
+    show_pi
+    show_nvim_review
+    show_productivity
+    ;;
+esac

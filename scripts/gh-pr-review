@@ -18,6 +18,11 @@ DIFF_FILE="$TEMP_DIR/pr.diff"
 COMMENTS_FILE="$TEMP_DIR/comments.jsonl"
 METADATA_FILE="$TEMP_DIR/metadata.json"
 
+# Pi review JSON file (written by pi_review.lua, read by Pi extension)
+PI_REVIEW_DIR=".pi/reviews"
+PI_REVIEW_JSON=""
+PI_REVIEW_ROOT=""
+
 # Cleanup on exit
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
@@ -129,6 +134,12 @@ gh pr diff "$PR_NUMBER" --repo "$REPO" > "$DIFF_FILE" || error "Failed to fetch 
 
 # Initialize empty comments file
 echo -n "" > "$COMMENTS_FILE"
+
+# Set up Pi review integration (if invoked from Pi context)
+PI_REVIEW_STAMP=$(date -u +"%Y-%m-%dT%H-%M-%S" 2>/dev/null || date -u +"%Y-%m-%d-%H-%M-%S")
+mkdir -p "$PI_REVIEW_DIR"
+PI_REVIEW_JSON="$(pwd)/$PI_REVIEW_DIR/pr-review-${PR_NUMBER}-${PI_REVIEW_STAMP}.json"
+PI_REVIEW_ROOT="$(pwd)"
 
 # Create review script for Neovim
 cat > "$TEMP_DIR/review.vim" << 'VIMEOF'
@@ -314,8 +325,17 @@ echo ""
 
 export PR_REVIEW_COMMENTS_FILE="$COMMENTS_FILE"
 export PR_REVIEW_METADATA_FILE="$METADATA_FILE"
+export PI_REVIEW_ROOT="$PI_REVIEW_ROOT"
+export PI_REVIEW_JSON="$PI_REVIEW_JSON"
+export PI_REVIEW_DIFF="$DIFF_FILE"
+export PI_REVIEW_SCOPE="pr-$PR_NUMBER"
 
-nvim -c "source $TEMP_DIR/review.vim" "$DIFF_FILE"
+# If pi_review.lua is available, use the rich module; otherwise fall back to the vimscript
+if [ -f "$HOME/.config/nvim/lua/tuliopaim/pi_review.lua" ]; then
+  nvim -c "lua require('tuliopaim.pi_review').start()" "$DIFF_FILE"
+else
+  nvim -c "source $TEMP_DIR/review.vim" "$DIFF_FILE"
+fi
 
 # Count comments
 COMMENT_COUNT=$(wc -l < "$COMMENTS_FILE" | tr -d ' ')

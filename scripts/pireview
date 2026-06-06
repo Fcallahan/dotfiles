@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# pireview — Pi nvim review command reference
+# Source: https://github.com/tuliopaim/nvim/blob/7b4aae6/lua/tuliopaim/pi_review.lua
+# Usage: pireview [--flow|--keys|--help]
+
+set -euo pipefail
+
+show_flow() {
+  cat << 'FLOW'
+
+╔══════════════════════════════════════════════════════════════╗
+║              Pi nvim review — user flow                     ║
+╚══════════════════════════════════════════════════════════════╝
+
+  You're in Pi, working on a repo
+
+  /nvim-review
+    ↓
+  Pi extension generates:
+    .pi/reviews/nvim-review-<stamp>.diff   (full-context diff)
+    .pi/reviews/nvim-review-<stamp>.json   (persistent comments)
+    .pi/reviews/nvim-review-<stamp>.vim    (legacy vimscript fallback)
+    ↓
+  Pi spawns nvim with env vars:
+    PI_REVIEW_ROOT, PI_REVIEW_DIFF,
+    PI_REVIEW_JSON, PI_REVIEW_SCOPE
+    ↓
+  nvim starts → pi_review.lua auto-loads via init.lua
+    ↓
+  Rich review mode active in the diff buffer
+    ↓
+  :qa → comments saved to JSON → Pi reads JSON →
+  comments sent back to agent
+
+FLOW
+}
+
+show_keys() {
+  cat << 'KEYS'
+
+╔══════════════════════╤══════════════════════════════════════╗
+║ Keys                 │ Action                               ║
+╠══════════════════════╪══════════════════════════════════════╣
+║ <leader>rc           │ Add/edit comment on current line     ║
+║ <leader>rd           │ Delete comment                       ║
+║ <leader>rx           │ Toggle resolved/unresolved           ║
+║ <leader>rs           │ Save review (writes JSON)            ║
+║ <leader>rR           │ Restart — clear all comments         ║
+║ <leader>rn           │ Jump to next comment                 ║
+║ <leader>rp           │ Jump to previous comment             ║
+║ <leader>rq           │ Save review and quit                 ║
+║ ]f                   │ Next file in diff                    ║
+║ [f                   │ Previous file in diff                ║
+╠══════════════════════╪══════════════════════════════════════╣
+║ /nvim-review         │ Review all uncommitted changes       ║
+║ /nvim-review --staged│ Review only staged changes           ║
+║ /nvim-review --unstaged│ Review only unstaged changes      ║
+║ /nvim-review --context=N│ Limit context lines              ║
+╚══════════════════════╧══════════════════════════════════════╝
+
+KEYS
+}
+
+show_help() {
+  cat << 'HELP'
+Usage: pireview [--flow|--keys|--help]
+
+Pi nvim review reference. Shows the user flow, keybindings,
+and available /nvim-review commands.
+
+Without arguments, prints both the flow and keybindings.
+
+Options:
+  --flow    Only show the user flow diagram
+  --keys    Only show the keybinding reference table
+  --help    This help text
+HELP
+}
+
+case "${1:-}" in
+  --flow|-f)    show_flow ;;
+  --keys|-k)    show_keys ;;
+  --help|-h)    show_help ;;
+  *)            show_flow; show_keys ;;
+esac

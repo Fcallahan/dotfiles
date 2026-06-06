@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# herdr-new-workspace — Prompt for a workspace name, or use default on Enter
+#
+# Bound to prefix+shift+n so that creating a workspace asks for a name.
+# Just press Enter to use herdr's auto-generated default name.
+
+set -euo pipefail
+
+name="$(printf '' | fzf --print-query --query '' \
+  --prompt='Workspace name (Enter for default): ' \
+  --height 3 --border --no-hscroll \
+  --color 'prompt:#89b4fa,query:#cdd6f4' 2>/dev/null || true)"
+
+if [[ -n "$name" ]]; then
+  herdr workspace create --label "$name" --focus
+else
+  herdr workspace create --focus
+fi

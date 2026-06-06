@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# herdr-dotfiles — focus/create a Herdr workspace rooted at ~/dotfiles.
+
+set -euo pipefail
+
+herdr workspace create --cwd "$HOME/dotfiles" --label dotfiles --focus >/dev/null

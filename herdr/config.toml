@@ -1,0 +1,81 @@
+onboarding = false
+
+[theme]
+name = "catppuccin"
+
+# Subtle gray accent: keeps pane borders quiet without killing contrast for
+# inactive tab labels and other UI that also uses this token. Matching the
+# panel bg (#1e1e2e) hides the border entirely but makes inactive tab names
+# unreadable.
+[theme.custom]
+accent = "#45475a"
+
+[ui]
+agent_panel_scope = "all"
+
+[keys]
+# Match tmux prefix (ctrl+s).
+prefix = "ctrl+s"
+
+# Disable the default new_workspace binding so the [[keys.command]] override below takes it.
+new_workspace = ""
+
+# Prefix-based vim-style pane navigation, matching the tmux setup.
+# Using prefix avoids shadowing ctrl+h/j/k/l inside vim/nvim panes.
+# Pane navigation — direct chords only, no prefix mode (no blink).
+# ctrl+alt+h/j/k/l: universal terminal support, no vim conflict, no yabai conflict.
+# prefix+h/j/k/l kept as fallback.
+focus_pane_left = ["ctrl+alt+h", "alt+h", "prefix+h"]
+focus_pane_down = ["ctrl+alt+j", "alt+j", "prefix+j"]
+focus_pane_up = ["ctrl+alt+k", "alt+k", "prefix+k"]
+focus_pane_right = ["ctrl+alt+l", "alt+l", "prefix+l"]
+
+# Sidebar navigation: move between spaces and agents, then focus the selected target.
+previous_workspace = "prefix+shift+k"
+next_workspace = "prefix+shift+j"
+previous_agent = "prefix+alt+k"
+next_agent = "prefix+alt+j"
+focus_agent = "prefix+alt+1..9"
+switch_workspace = "prefix+shift+1..9"
+
+# tmux-like copy/scrollback mode: prefix+[ opens scrollback in $EDITOR
+# (use vim motions/search/visual selection, then editor/terminal clipboard commands).
+edit_scrollback = "prefix+["
+copy_mode = ""
+
+
+# prefix+shift+a: Prompt for a custom name for the focused agent in the sidebar.
+# Avoid prefix+alt+r: many terminals/Herdr prefix mode collapse it to prefix+r,
+# which is the built-in resize-mode binding.
+[[keys.command]]
+key = "prefix+shift+a"
+description = "rename focused agent row"
+type = "pane"
+command = "$HOME/dotfiles/scripts/herdr-rename-agent"
+
+# prefix+H: focus or create the dotfiles workspace at ~/dotfiles.
+[[keys.command]]
+key = "prefix+shift+h"
+description = "open dotfiles workspace"
+type = "shell"
+command = "$HOME/dotfiles/scripts/herdr-dotfiles"
+
+# prefix+shift+n / prefix+shift+c: Create a new workspace, prompting for a name (or Enter for default).
+[[keys.command]]
+key = "prefix+shift+n"
+description = "new workspace (prompt for name)"
+type = "pane"
+command = "$HOME/dotfiles/scripts/herdr-new-workspace"
+
+[[keys.command]]
+key = "prefix+shift+c"
+description = "new workspace (prompt for name)"
+type = "pane"
+command = "$HOME/dotfiles/scripts/herdr-new-workspace"
+
+# prefix+F: fzf-pick a worktree under ~/code and open it as a workspace.
+[[keys.command]]
+key = "prefix+shift+f"
+description = "fzf-pick a worktree workspace"
+type = "pane"
+command = "$HOME/dotfiles/scripts/session-worktree --herdr"

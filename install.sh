@@ -57,6 +57,7 @@ LINKS=(
     "gh-dash/config.yml:$HOME/.config/gh-dash/config.yml"
     "gh/config.yml:$HOME/.config/gh/config.yml"
     "gh-news/config.toml:$HOME/.config/gh-news/config.toml"
+    "herdr/config.toml:$HOME/.config/herdr/config.toml"
     "ideavim/.ideavimrc:$HOME/.ideavimrc"
     "wsl/.wslgrc:$HOME/.wslgrc"
     "bash/.bashrc:$HOME/.bashrc"

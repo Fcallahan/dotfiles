@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# session-worktree — pick a ~/code directory and open it in tmux or Herdr.
+# Usage: session-worktree [--herdr] [path]
+
+set -euo pipefail
+
+mode="tmux"
+if [[ "${1:-}" == "--herdr" ]]; then
+  mode="herdr"
+  shift
+fi
+
+code_root="${CODE_ROOT:-$HOME/code}"
+
+if [[ $# -gt 0 ]]; then
+  selected="$1"
+else
+  selected="$(find "$code_root"/* -mindepth 0 -maxdepth 2 -not -path '*/.bare*' -type d -print 2>/dev/null | fzf || true)"
+fi
+
+if [[ -z "${selected:-}" ]]; then
+  exit 0
+fi
+
+selected="$(realpath "$selected")"
+label="$(basename "$selected")"
+
+if [[ "$mode" == "herdr" ]]; then
+  herdr workspace create --cwd "$selected" --label "$label" --focus >/dev/null
+  exit 0
+fi
+
+exec tmuxwindownizer "$selected"

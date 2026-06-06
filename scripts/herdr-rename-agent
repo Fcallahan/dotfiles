@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# herdr-rename-agent — Prompt for a display name for the focused Herdr agent.
+# Bound from Herdr config; clears the custom agent name on empty input.
+
+set -euo pipefail
+
+# When this script is launched as a Herdr `type = "pane"` command, HERDR_PANE_ID
+# may point at the temporary prompt pane. Prefer Herdr's active pane hint when it
+# exists, then fall back to the currently focused agent row, and only then to the
+# current pane id.
+target="${1:-${HERDR_ACTIVE_PANE_ID:-}}"
+if [[ -z "$target" ]]; then
+  target="$(herdr agent list 2>/dev/null | jq -r '.result.agents[] | select(.focused) | (.terminal_id // .pane_id)' | head -n 1)"
+fi
+if [[ -z "$target" || "$target" == "null" ]]; then
+  target="${HERDR_PANE_ID:-}"
+fi
+if [[ -z "$target" ]]; then
+  echo "herdr-rename-agent: must be run from inside herdr or a herdr key command" >&2
+  exit 1
+fi
+
+current=""
+if agent_info="$(herdr agent get "$target" 2>/dev/null)"; then
+  current="$(echo "$agent_info" | jq -r '.result.agent.name // .result.agent.label // .result.agent.agent // ""')"
+fi
+
+printf 'Agent name [%s] (empty clears): ' "${current:-current}"
+IFS= read -r name
+
+if [[ -n "$name" ]]; then
+  herdr agent rename "$target" "$name" >/dev/null
+else
+  herdr agent rename "$target" --clear >/dev/null
+fi
