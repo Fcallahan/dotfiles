@@ -6,3 +6,10 @@ gh/hosts.yml
 *.backup
 *.tmp
 *.swp
+
+# Pi local state/secrets (keep only curated config/extensions)
+pi/agent/auth.json
+pi/agent/sessions/
+pi/agent/run-history.jsonl
+pi/agent/npm/
+pi/agent/git/

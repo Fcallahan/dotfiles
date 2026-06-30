@@ -62,6 +62,9 @@ LINKS=(
     "wsl/.wslgrc:$HOME/.wslgrc"
     "bash/.bashrc:$HOME/.bashrc"
     "bash/.profile:$HOME/.profile"
+    "pi/agent/settings.json:$HOME/.pi/agent/settings.json"
+    "pi/agent/keybindings.json:$HOME/.pi/agent/keybindings.json"
+    "pi/agent/extensions/workflow:$HOME/.pi/agent/extensions/workflow"
 )
 
 for mapping in "${LINKS[@]}"; do

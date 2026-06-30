@@ -1,0 +1,15 @@
+{
+  "lastChangelogVersion": "0.80.2",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.5",
+  "defaultThinkingLevel": "off",
+  "packages": [
+    "npm:pi-subagents"
+  ],
+  "extensions": [
+    "~/pi-extensions/files-widget",
+    "~/pi_nvim_review_comments"
+  ],
+  "hideThinkingBlock": true,
+  "theme": "dark"
+}
