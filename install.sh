@@ -65,6 +65,9 @@ LINKS=(
     "pi/agent/settings.json:$HOME/.pi/agent/settings.json"
     "pi/agent/keybindings.json:$HOME/.pi/agent/keybindings.json"
     "pi/agent/extensions/workflow:$HOME/.pi/agent/extensions/workflow"
+    "pi/agent/prompts:$HOME/.pi/agent/prompts"
+    "pi/agent/skills/dynamic-workflows:$HOME/.pi/agent/skills/dynamic-workflows"
+    "pi/agent/workflows:$HOME/.pi/agent/workflows"
 )
 
 for mapping in "${LINKS[@]}"; do
