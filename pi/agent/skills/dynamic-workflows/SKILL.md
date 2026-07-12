@@ -1,6 +1,14 @@
 ---
 name: dynamic-workflows
-description: Decide when to use pi dynamic workflows: model-authored Node orchestrators that fan out isolated headless pi subprocesses, keep loops/state/retries in code, resume from manifests, and adversarially verify results. Use for broad multi-file audits, repeated per-file/per-module analysis, large deterministic fan-out, batch classification, repository-wide searches needing judgment, and tasks where missing units would be costly. Do not use for simple single-file edits or ordinary implementation unless explicit batching/verification is needed.
+description: >-
+  Decide when to use pi dynamic workflows: model-authored Node orchestrators that
+  fan out isolated headless pi subprocesses, keep loops/state/retries in code,
+  resume from manifests, and adversarially verify results. Use for broad
+  multi-file audits, repeated per-file/per-module analysis, large deterministic
+  fan-out, batch classification, repository-wide searches needing judgment, and
+  tasks where missing units would be costly. Do not use for simple single-file
+  edits or ordinary implementation unless explicit batching/verification is
+  needed.
 ---
 
 # Dynamic Workflows
@@ -61,7 +69,7 @@ import {
 1. State a 3-5 line phase plan.
 2. Create `.pi/workflows/` if needed.
 3. Write `.pi/workflows/<slug>.mjs`.
-4. Run it with `node`.
+4. Run it with the `run_dynamic_workflow` tool when available; fall back to `node` via bash only if that tool is unavailable.
 5. Report only the final merged artifact and manifest paths.
 
 Scripts should support:
@@ -72,6 +80,8 @@ Scripts should support:
 --retries 2
 --concurrency 16
 ```
+
+When using `run_dynamic_workflow`, pass those controls as tool parameters (`force`, `noResume`, `retries`, `concurrency`) and pass unit paths/items in `args`.
 
 ## Skeleton
 
@@ -111,6 +121,10 @@ const phase1 = await runUnits({
   }),
 });
 
+if (phase1.failed.length) {
+  throw new Error(`Phase 1 failed for ${phase1.failed.length} unit(s); see ${phase1.manifestPath}`);
+}
+
 const candidates = phase1.units.flatMap((u) =>
   (u.result?.findings ?? []).map((finding) => ({ unit: u.unit, finding }))
 );
@@ -133,6 +147,10 @@ const phase2 = await runUnits({
     prompt: `Try to REFUTE this finding. Confirm only with concrete evidence: ${JSON.stringify(candidate)}`,
   }),
 });
+
+if (phase2.failed.length) {
+  throw new Error(`Phase 2 failed for ${phase2.failed.length} unit(s); see ${phase2.manifestPath}`);
+}
 
 const confirmed = phase2.units
   .filter((u) => u.result?.verdict === "confirmed")

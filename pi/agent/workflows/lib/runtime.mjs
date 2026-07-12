@@ -157,6 +157,7 @@ export async function runUnits({
   const now = new Date().toISOString();
   const manifest = {
     schemaVersion: 1,
+    invocationId: process.env.PI_DYNAMIC_WORKFLOW_RUN_ID,
     name,
     task,
     runDir: runDirAbs,
