@@ -4,11 +4,18 @@ gh/hosts.yml
 
 # Local/temp files
 *.backup
+*.bak
+*.bak-*
 *.tmp
 *.swp
 
 # Pi local state/secrets (keep only curated config/extensions)
 pi/agent/auth.json
+pi/agent/session.json
+pi/agent/session.jsonl
+pi/agent/runtime/
+pi/agent/state/
+pi/agent/logs/
 pi/agent/sessions/
 pi/agent/run-history.jsonl
 pi/agent/npm/

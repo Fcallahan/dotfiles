@@ -64,7 +64,16 @@ LINKS=(
     "bash/.profile:$HOME/.profile"
     "pi/agent/settings.json:$HOME/.pi/agent/settings.json"
     "pi/agent/keybindings.json:$HOME/.pi/agent/keybindings.json"
+    "pi/agent/APPEND_SYSTEM.md:$HOME/.pi/agent/APPEND_SYSTEM.md"
+    "pi/agent/models.json:$HOME/.pi/agent/models.json"
+    "pi/agent/themes:$HOME/.pi/agent/themes"
+    "pi/agent/zentui.json:$HOME/.pi/agent/zentui.json"
     "pi/agent/extensions/workflow:$HOME/.pi/agent/extensions/workflow"
+    "pi/agent/extensions/plan-build:$HOME/.pi/agent/extensions/plan-build"
+    "pi/agent/extensions/command-palette:$HOME/.pi/agent/extensions/command-palette"
+    "pi/agent/extensions/dynamic-workflow-ux:$HOME/.pi/agent/extensions/dynamic-workflow-ux"
+    "pi/agent/extensions/question:$HOME/.pi/agent/extensions/question"
+    "pi/agent/extensions/nvim-review:$HOME/.pi/agent/extensions/nvim-review"
     "pi/agent/prompts:$HOME/.pi/agent/prompts"
     "pi/agent/skills/dynamic-workflows:$HOME/.pi/agent/skills/dynamic-workflows"
     "pi/agent/workflows:$HOME/.pi/agent/workflows"
@@ -100,6 +109,15 @@ else
     print_info "Neovim config already exists at ~/.config/nvim (left unchanged)."
 fi
 
+PI_EXTENSIONS_REPO_URL="https://github.com/tmustier/pi-extensions.git"
+if [ ! -e "$HOME/pi-extensions" ]; then
+    print_info "Cloning Pi files-widget extensions..."
+    git clone "$PI_EXTENSIONS_REPO_URL" "$HOME/pi-extensions"
+    print_success "Cloned Pi extensions to ~/pi-extensions"
+else
+    print_info "Pi extensions already exist at ~/pi-extensions (left unchanged)."
+fi
+
 echo ""
 print_info "Checking dependencies..."
 
@@ -115,6 +133,7 @@ command -v delta >/dev/null 2>&1 || MISSING_DEPS+=("delta (git-delta)")
 command -v zoxide >/dev/null 2>&1 || MISSING_DEPS+=("zoxide")
 command -v fzf >/dev/null 2>&1 || MISSING_DEPS+=("fzf")
 command -v jq >/dev/null 2>&1 || MISSING_DEPS+=("jq")
+command -v pi >/dev/null 2>&1 || MISSING_DEPS+=("pi")
 
 if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     print_warning "Missing dependencies:"

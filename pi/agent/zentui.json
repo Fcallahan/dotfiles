@@ -1,0 +1,25 @@
+{
+  "features": {
+    "editor": true,
+    "statusLine": false,
+    "copyFriendly": false
+  },
+  "colorSources": {
+    "starship": "theme",
+    "editor": "theme",
+    "userMessages": "theme"
+  },
+  "colors": {
+    "editorAccent": "accent",
+    "editorPrompt": "accent",
+    "editorBorder": "borderMuted",
+    "editorModel": "accent",
+    "editorProvider": "text",
+    "editorThinking": "muted",
+    "editorThinkingMinimal": "thinkingMinimal",
+    "editorThinkingLow": "thinkingLow",
+    "editorThinkingMedium": "thinkingMedium",
+    "editorThinkingHigh": "thinkingHigh",
+    "editorThinkingXhigh": "thinkingXhigh"
+  }
+}

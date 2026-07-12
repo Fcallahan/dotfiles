@@ -15,6 +15,8 @@ chmod +x install.sh
 
 The installer creates symlinks, backs up replaced files, and installs script entrypoints to `~/.local/bin`.
 
+For Pi setup, see `docs/pi-setup.md` after running the installer.
+
 ## What is managed
 
 ### Core dotfiles
@@ -36,6 +38,18 @@ The installer creates symlinks, backs up replaced files, and installs script ent
 - `gh-dash/config.yml`
 - `gh/config.yml`
 - `gh-news/config.toml`
+
+### Pi OpenCode-style UI (`~/.pi/agent`)
+- `pi/agent/settings.json` — selects `openai-codex`, `gpt-5.6-sol`, low thinking, OpenCode theme, UI packages, and the external files-widget extension.
+- `pi/agent/models.json` — portable model definition for `gpt-5.6-sol`.
+- `pi/agent/APPEND_SYSTEM.md` — appended response style and reliability instructions.
+- `pi/agent/keybindings.json` — OpenCode-style editing keys, session path toggle, and provider toggle.
+- `pi/agent/themes/opencode.json` and `pi/agent/zentui.json` — OpenCode palette and editor chrome.
+- Curated extensions: `workflow`, `plan-build`, `command-palette`, `dynamic-workflow-ux`, `question`, and `nvim-review`.
+- External extension repo cloned by installer: `~/pi-extensions` for `files-widget`.
+- Package setup is declared in settings: `npm:pi-subagents`, `npm:pi-zentui`, and `npm:pi-tool-display`.
+
+See `docs/pi-setup.md` for install/auth/reload and verification details. Do not copy Pi auth or session state.
 
 ### Scripts (`~/.local/bin`)
 - `scripts/browser-launcher.sh`
@@ -173,10 +187,35 @@ gh extension install dlvhdr/gh-dash
 gh auth switch -h github.com -u Fcallahan
 ```
 
-### 8) Final post-install commands
+### 8) Set up Pi OpenCode-style UI
 
 ```bash
-cp ~/dotfiles/zsh/.zshrc.local.example ~/.zshrc.local
+# Pi config, models, system prompt, theme, keybindings, and curated extensions
+# are symlinked by ./install.sh. Follow the full Pi guide:
+$EDITOR docs/pi-setup.md
+
+# If Pi is installed, packages can also be installed explicitly:
+pi install npm:pi-subagents
+pi install npm:pi-zentui
+pi install npm:pi-tool-display
+
+# Terminal color support for Pi/OpenCode palettes
+[ -f ~/.zshrc.local ] || cp ~/dotfiles/zsh/.zshrc.local.example ~/.zshrc.local
+grep -q '^export COLORTERM=' ~/.zshrc.local || printf '\nexport COLORTERM=truecolor\n' >> ~/.zshrc.local
+```
+
+Authenticate `openai-codex` inside Pi with `/login`; never copy `auth.json`. Run `/reload` or restart Pi after setup.
+
+Windows/WSL terminal recommendations:
+- Best smoothness: Ghostty, Kitty, or WezTerm. Windows Terminal is usable but less OpenCode-smooth.
+- Install a Nerd Font per-user: download **JetBrainsMono Nerd Font** from <https://www.nerdfonts.com/font-downloads>, unzip, select the `.ttf` files, right-click → **Install for me**.
+- Set your terminal profile font face to `JetBrainsMono Nerd Font`.
+- Restart the shell, then run `/reload` inside Pi.
+
+### 9) Final post-install commands
+
+```bash
+[ -f ~/.zshrc.local ] || cp ~/dotfiles/zsh/.zshrc.local.example ~/.zshrc.local
 $EDITOR ~/.zshrc.local
 
 chsh -s "$(which zsh)"
@@ -186,7 +225,7 @@ source ~/.zshrc
 ~/.tmux/plugins/tpm/bin/install_plugins
 ```
 
-After this, open a new terminal session and your shell/tmux/git/tooling should match this setup.
+After this, open a new terminal session and your shell/tmux/git/Pi tooling should match this setup.
 
 If you use multiple GitHub accounts, verify the active one before pushing:
 

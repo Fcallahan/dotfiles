@@ -1,15 +1,17 @@
 {
   "lastChangelogVersion": "0.80.2",
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.5",
-  "defaultThinkingLevel": "off",
+  "defaultModel": "gpt-5.6-sol",
+  "defaultThinkingLevel": "low",
+  "editorPaddingX": 2,
   "packages": [
-    "npm:pi-subagents"
+    "npm:pi-subagents",
+    "npm:pi-zentui",
+    "npm:pi-tool-display"
   ],
   "extensions": [
-    "~/pi-extensions/files-widget",
-    "~/pi_nvim_review_comments"
+    "~/pi-extensions/files-widget"
   ],
   "hideThinkingBlock": true,
-  "theme": "dark"
+  "theme": "opencode"
 }
