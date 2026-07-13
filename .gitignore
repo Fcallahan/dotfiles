@@ -1,6 +1,7 @@
-# Local secrets
+# Local secrets and agent instructions
 zsh/.zshrc.local
 gh/hosts.yml
+AGENTS.md
 
 # Local/temp files
 *.backup
