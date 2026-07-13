@@ -1,0 +1,39 @@
+<h2>How defined should the PiGate input box feel?</h2>
+<p class="subtitle">All three keep your current dark theme. The difference is how strongly the editor is separated from the conversation.</p>
+
+<div class="cards">
+  <div class="card" data-choice="subtle" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:22px;background:#17191f;min-height:190px;display:flex;align-items:flex-end">
+      <div style="width:100%">
+        <div style="color:#777f91;font:13px monospace;margin-bottom:7px">~/code/Work/BR  •  high</div>
+        <div style="border:1px solid #596171;border-radius:7px;padding:13px 15px;color:#e6e8ee;font:15px monospace;background:#1d2028;box-shadow:0 3px 12px #0005">› Type a message…<br><br><span style="color:#70798c">enter send · shift+enter newline</span></div>
+      </div>
+    </div>
+    <div class="card-body"><h3>A. Subtle frame</h3><p>Muted border and slightly raised background. Clear without drawing much attention.</p></div>
+  </div>
+
+  <div class="card" data-choice="clear" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:22px;background:#17191f;min-height:190px;display:flex;align-items:flex-end">
+      <div style="width:100%">
+        <div style="color:#58d6b2;font:700 12px monospace;letter-spacing:.08em;margin:0 0 7px 3px">MESSAGE</div>
+        <div style="border:2px solid #8b7cf6;border-radius:8px;padding:13px 15px;color:#f1f2f7;font:15px monospace;background:#222530;box-shadow:0 0 0 1px #8b7cf633,0 5px 18px #0007">› Type a message…<br><br><span style="color:#949caf">enter send · shift+enter newline</span></div>
+      </div>
+    </div>
+    <div class="card-body"><h3>B. Clear frame <span style="color:#8b7cf6">— Recommended</span></h3><p>Accent border, distinct fill, and compact label. Obviously an input area while staying tasteful.</p></div>
+  </div>
+
+  <div class="card" data-choice="strong" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:22px;background:#17191f;min-height:190px;display:flex;align-items:flex-end">
+      <div style="width:100%;border-left:5px solid #58d6b2;background:#292d39;padding:12px 15px;box-shadow:0 8px 24px #0009">
+        <div style="color:#58d6b2;font:700 12px monospace;margin-bottom:10px">⌨ PROMPT</div>
+        <div style="color:#f5f6fa;font:15px monospace">› Type a message…</div><br>
+        <div style="color:#a3abba;font:12px monospace">ENTER TO SEND</div>
+      </div>
+    </div>
+    <div class="card-body"><h3>C. Strong panel</h3><p>High-contrast block and side accent. Maximum separation, but visually heavier.</p></div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:22px">
+  <p><strong>Separate cleanup:</strong> the two reported skill pairs are byte-for-byte identical. I recommend keeping one canonical copy and replacing the other location with symlinks so they cannot drift.</p>
+</div>

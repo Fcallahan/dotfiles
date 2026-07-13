@@ -1,5 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key } from "@earendil-works/pi-tui";
+import { loadConfig } from "pi-zentui/extensions/zentui/config";
+import { PolishedEditor } from "pi-zentui/extensions/zentui/ui";
 import { isReadOnlyCommand } from "./utils.ts";
 
 type Mode = "plan" | "build";
@@ -33,12 +35,9 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
   }
 
   function updateUi(ctx: ExtensionContext): void {
-    const label = mode === "plan" ? "PLAN" : "BUILD";
-    const color: "warning" | "success" = mode === "plan" ? "warning" : "success";
-    ctx.ui.setStatus(
-      "plan-build-mode",
-      ctx.ui.theme.fg(color, `${label} ⇧Tab`),
-    );
+    ctx.ui.setStatus("plan-build-mode", undefined);
+    const editorFactory = ctx.ui.getEditorComponent();
+    if (editorFactory) ctx.ui.setEditorComponent(editorFactory);
   }
 
   function enterPlan(ctx: ExtensionContext, persistChange = true): void {
@@ -127,6 +126,30 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("session_start", async (_event, ctx) => {
+    ctx.ui.setEditorComponent((tui, theme, keybindings) =>
+      new PolishedEditor(
+        tui,
+        theme,
+        keybindings,
+        ctx.ui.theme,
+        loadConfig,
+        () => {
+          const modeLabel = mode === "plan"
+            ? ctx.ui.theme.fg("thinkingMedium", "PLAN")
+            : ctx.ui.theme.fg("warning", "BUILD");
+          const details = ctx.ui.theme.fg(
+            "success",
+            `⇧Tab  (${ctx.model?.provider ?? "unknown"}) ${ctx.model?.id ?? "no-model"}`,
+          );
+          return {
+            modelLabel: `${modeLabel} ${details}`,
+            providerLabel: "",
+          };
+        },
+        () => pi.getThinkingLevel(),
+      )
+    );
+
     const saved = ctx.sessionManager.getEntries()
       .filter((entry: { type: string; customType?: string }) => entry.type === "custom" && entry.customType === "plan-build-mode")
       .pop() as { data?: PersistedState } | undefined;

@@ -120,6 +120,10 @@ alias src="source ~/.zshrc && echo 'Zsh configuration reloaded!'"
 alias shell="nvim ~/.zshrc"
 alias cls="clear"
 alias oc="opencode"
+
+# pi aliases
+alias pic='pi --model openai-codex/gpt-5.6-sol:medium'
+
 alias ll="ls -lat"
 alias la="ls -la"
 alias l="ls -l"

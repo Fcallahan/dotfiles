@@ -31,9 +31,9 @@ Give an AI agent this exact prompt:
    pi install npm:pi-tool-display
    ```
 
-4. Authenticate the `openai-codex` provider inside Pi with `/login`. Never copy or commit `auth.json` or other session/auth state.
+4. Authenticate the `openai-codex` provider inside Pi with `/login`. Authenticate OpenRouter only if DeepSeek access is wanted. Never copy or commit `auth.json` or other session/auth state.
 
-5. The `gpt-5.6-sol` model comes from the tracked `pi/agent/models.json` symlinked to `~/.pi/agent/models.json`.
+5. Pi's built-in `openai-codex/gpt-5.6-sol` uses the Codex subscription. `models.json` only overrides built-in metadata; it does not define a custom model. The `openrouter-deepseek-only` extension removes non-DeepSeek OpenRouter models from Pi's effective catalog.
 
 6. Run `/reload` inside Pi or restart Pi after installing/authenticating.
 
@@ -48,6 +48,7 @@ Give an AI agent this exact prompt:
   - `dynamic-workflow-ux`
   - `question`
   - `nvim-review`
+  - `openrouter-deepseek-only.ts`
 - External files-widget repo cloned to `~/pi-extensions` and referenced as `~/pi-extensions/files-widget`
 
 ## Verification
@@ -61,6 +62,7 @@ test -L ~/.pi/agent/models.json
 test -L ~/.pi/agent/extensions/question
 test -L ~/.pi/agent/extensions/dynamic-workflow-ux
 test -L ~/.pi/agent/extensions/nvim-review
+test -L ~/.pi/agent/extensions/openrouter-deepseek-only.ts
 jq empty ~/.pi/agent/settings.json ~/.pi/agent/keybindings.json ~/.pi/agent/models.json
 pi --version
 ```
@@ -74,3 +76,4 @@ Then start Pi and verify:
 - Workflow and dynamic workflow tools are available.
 - Keybindings include `Ctrl+Shift+Alt+P` for session path toggle and `Ctrl+Shift+P` for provider toggle.
 - Provider/model show `openai-codex` / `gpt-5.6-sol`.
+- OpenRouter models shown by Pi all have IDs beginning with `deepseek/`; no OpenRouter GPT model is selectable.

@@ -40,12 +40,13 @@ For Pi setup, see `docs/pi-setup.md` after running the installer.
 - `gh-news/config.toml`
 
 ### Pi OpenCode-style UI (`~/.pi/agent`)
-- `pi/agent/settings.json` — selects `openai-codex`, `gpt-5.6-sol`, low thinking, OpenCode theme, UI packages, and the external files-widget extension.
-- `pi/agent/models.json` — portable model definition for `gpt-5.6-sol`.
+- `pi/agent/settings.json` — selects `openai-codex`, `gpt-5.6-sol`, high thinking, OpenCode theme, UI packages, and the external files-widget extension.
+- `pi/agent/models.json` — overrides built-in model metadata without defining a redundant custom Codex model.
+- `pi/agent/extensions/openrouter-deepseek-only.ts` — restricts the authenticated OpenRouter catalog to DeepSeek models so GPT always uses the Codex subscription.
 - `pi/agent/APPEND_SYSTEM.md` — appended response style and reliability instructions.
 - `pi/agent/keybindings.json` — OpenCode-style editing keys, session path toggle, and provider toggle.
 - `pi/agent/themes/opencode.json` and `pi/agent/zentui.json` — OpenCode palette and editor chrome.
-- Curated extensions: `workflow`, `plan-build`, `command-palette`, `dynamic-workflow-ux`, `question`, and `nvim-review`.
+- Curated extensions: `workflow`, `plan-build`, `command-palette`, `dynamic-workflow-ux`, `question`, `nvim-review`, and `openrouter-deepseek-only`.
 - External extension repo cloned by installer: `~/pi-extensions` for `files-widget`.
 - Package setup is declared in settings: `npm:pi-subagents`, `npm:pi-zentui`, and `npm:pi-tool-display`.
 

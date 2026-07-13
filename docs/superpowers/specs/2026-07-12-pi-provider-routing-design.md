@@ -14,12 +14,11 @@ Ensure Pi uses the OpenAI Codex subscription for GPT models while retaining Open
 
 Add a global Pi extension loaded from the dotfiles configuration. During extension initialization it will:
 
-1. Read the existing OpenRouter credential through Pi's `AuthStorage` API.
-2. Load Pi's built-in OpenRouter model metadata.
-3. Retain only models whose IDs begin with `deepseek/`.
-4. Re-register the `openrouter` provider with that filtered model list before initial model selection.
+1. Load Pi's built-in OpenRouter model metadata.
+2. Retain only models whose IDs begin with `deepseek/`.
+3. Re-register the built-in `openrouter` provider with that filtered model list before initial model selection.
 
-The credential remains in memory and is not written to the repository. If OpenRouter authentication is unavailable, startup must fail clearly rather than silently restoring the unrestricted catalog.
+The replacement continues to use Pi's normal `auth.json` resolution, so the extension never reads or stores the credential. Without OpenRouter authentication the filtered catalog remains in place, but requests to those DeepSeek models require login.
 
 ## Expected Behavior
 

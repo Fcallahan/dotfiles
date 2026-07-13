@@ -1,0 +1,4 @@
+{"type":"server-started","port":65528,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:65528","screen_dir":"/home/franciscallahan/dotfiles/.superpowers/brainstorm/1396588-1783876022/content","state_dir":"/home/franciscallahan/dotfiles/.superpowers/brainstorm/1396588-1783876022/state"}
+{"type":"screen-added","file":"/home/franciscallahan/dotfiles/.superpowers/brainstorm/1396588-1783876022/content/editor-treatment.html"}
+{"type":"screen-added","file":"/home/franciscallahan/dotfiles/.superpowers/brainstorm/1396588-1783876022/content/editor-treatment-v2.html"}
+{"type":"server-stopped","reason":"idle timeout"}

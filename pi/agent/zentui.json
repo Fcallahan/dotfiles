@@ -1,9 +1,10 @@
 {
   "features": {
-    "editor": true,
-    "statusLine": false,
+    "editor": false,
+    "statusLine": true,
     "copyFriendly": false
   },
+  "footerFormat": "$cwd $git_branch $git_status $fill $context $tokens $cost",
   "colorSources": {
     "starship": "theme",
     "editor": "theme",
@@ -12,14 +13,14 @@
   "colors": {
     "editorAccent": "accent",
     "editorPrompt": "accent",
-    "editorBorder": "borderMuted",
-    "editorModel": "accent",
-    "editorProvider": "text",
-    "editorThinking": "muted",
-    "editorThinkingMinimal": "thinkingMinimal",
-    "editorThinkingLow": "thinkingLow",
-    "editorThinkingMedium": "thinkingMedium",
-    "editorThinkingHigh": "thinkingHigh",
-    "editorThinkingXhigh": "thinkingXhigh"
+    "editorBorder": "borderAccent",
+    "editorModel": "success",
+    "editorProvider": "success",
+    "editorThinking": "success",
+    "editorThinkingMinimal": "success",
+    "editorThinkingLow": "success",
+    "editorThinkingMedium": "success",
+    "editorThinkingHigh": "success",
+    "editorThinkingXhigh": "success"
   }
 }
