@@ -21,4 +21,4 @@ pi/agent/sessions/
 pi/agent/run-history.jsonl
 pi/agent/npm/
 pi/agent/git/
-pi/agent/extensions/node_modules/
+pi/agent/extensions/node_modules
