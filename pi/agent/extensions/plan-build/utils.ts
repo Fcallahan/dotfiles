@@ -3,11 +3,12 @@ const SAFE_GIT = /^\s*git(?:\s+-C\s+(?:"[^"]+"|'[^']+'|\S+))*\s+(?:status|log|di
 const SAFE_PACKAGE = /^\s*(?:npm|pnpm|yarn)\s+(?:list|ls|view|info|why|outdated|audit)\b/i;
 const SAFE_VERSION = /^\s*(?:node|python|python3|ruby|go|rustc|cargo)\s+--version\b/i;
 const SAFE_PSQL = /^\s*psql\b.*(?:-c|--command(?:=|\s))\s*["']\s*BEGIN\s+(?:TRANSACTION\s+)?READ\s+ONLY\s*;/i;
+const SAFE_BUILTIN = /^\s*(?:true|false)\s*$/i;
 
 const MUTATION = /\b(?:rm|rmdir|mv|cp|mkdir|touch|chmod|chown|ln|truncate|dd|shred|sudo|su|kill|pkill|killall)\b|\bgit(?:\s+-C\s+(?:"[^"]+"|'[^']+'|\S+))*\s+(?:add|commit|push|pull|merge|rebase|reset|checkout|switch|restore|stash|cherry-pick|revert|tag|init|clone|clean)\b|\b(?:npm|pnpm|yarn)\s+(?:install|add|remove|uninstall|update|ci|link|publish)\b|\b(?:pip|pip3)\s+(?:install|uninstall)\b|\b(?:apt|apt-get|brew|dnf|yum|pacman)\s+(?:install|remove|purge|update|upgrade)\b|\b(?:vim|vi|nano|emacs|code|subl)\b/i;
 
 function isSafeSimpleCommand(command: string): boolean {
-  return [SAFE_COMMAND, SAFE_GIT, SAFE_PACKAGE, SAFE_VERSION, SAFE_PSQL].some((pattern) => pattern.test(command));
+  return [SAFE_COMMAND, SAFE_GIT, SAFE_PACKAGE, SAFE_VERSION, SAFE_PSQL, SAFE_BUILTIN].some((pattern) => pattern.test(command));
 }
 
 function splitShell(command: string): string[] | undefined {
@@ -28,7 +29,26 @@ function splitShell(command: string): string[] | undefined {
       continue;
     }
     if (char === "`" || (char === "$" && command[i + 1] === "(")) return undefined;
-    if (char === ">" || char === "<" || char === "|") return undefined;
+
+    const canStartFdRedirect = (char === "1" || char === "2") && (i === 0 || /\s|[;&|]/.test(command[i - 1]));
+    if (char === ">" || (char === "&" && command[i + 1] === ">") || canStartFdRedirect) {
+      const redirect = command.slice(i).match(/^(?:[12]>&[12]|(?:[12]|&)?>>?\s*\/dev\/null)(?=\s|;|&|\||$)/);
+      if (redirect) {
+        current += " ";
+        i += redirect[0].length - 1;
+        continue;
+      }
+      if (char === ">" || (char === "&" && command[i + 1] === ">")) return undefined;
+    }
+
+    if (char === "<") return undefined;
+    if (char === "|") {
+      if (command[i + 1] !== "|") return undefined;
+      parts.push(current.trim());
+      current = "";
+      i += 1;
+      continue;
+    }
     if (char === ";" || (char === "&" && command[i + 1] === "&")) {
       parts.push(current.trim());
       current = "";

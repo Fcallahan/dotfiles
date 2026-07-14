@@ -5,6 +5,8 @@ import { isReadOnlyCommand } from "./utils.ts";
 const allowed = [
   "git -C ../../HelmCharts status --short --branch && git -C ../../HelmCharts diff -- charts/a charts/b && git -C ../../HelmCharts diff --cached -- charts/a charts/b",
   "git -C ../../HelmCharts log -5 --oneline --decorate && printf '\\nEffective blocks:\\n'",
+  "pwd; git rev-parse --show-toplevel; git branch --show-current; git status --short; printf '\\n--- merge base ---\\n'; git rev-parse --verify origin/main 2>&1 || true; printf '\\n--- recent log ---\\n'; git log --oneline --decorate -12",
+  "git show missing 2>/dev/null || true",
   "rg -n 'application:|environment:' ../../HelmCharts/charts/emstatus-{webapi,claimsconsumer}-prod",
   "find ~/.pi/agent/skills -maxdepth 2 -type f && ls -la ~/.pi/agent/prompts",
   "for f in ../../HelmCharts/charts/*/values.yaml; do echo \"--- $f\"; awk '/^appConfig:/{p=1} p{print}' \"$f\"; done",
@@ -15,6 +17,8 @@ const blocked = [
   "git -C ../../HelmCharts checkout main",
   "git -C ../../HelmCharts status && rm -rf /tmp/example",
   "cat input > output",
+  "git status 2> errors.log",
+  "git status | cat",
   "echo $(touch /tmp/example)",
   "rg needle . | xargs rm",
   "for f in *; do rm \"$f\"; done",
