@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const MODEL_FLAG = "--model"; // verified for this pi build
-const DEFAULT_MODEL = process.env.PI_WF_MODEL ?? "anthropic/claude-sonnet-4-6";
-const CHEAP_MODEL = process.env.PI_WF_CHEAP ?? "anthropic/claude-haiku-4-5";
+const DEFAULT_MODEL = process.env.PI_WF_MODEL ?? "deepseek/deepseek-v4-flash";
+const CHEAP_MODEL = process.env.PI_WF_CHEAP ?? "deepseek/deepseek-v4-flash";
+const DEFAULT_PROVIDER = process.env.PI_WF_PROVIDER ?? "openrouter";
 
 function withArtifactWriteTool(tools) {
   const list = String(tools || "").split(",").map((t) => t.trim()).filter(Boolean);
@@ -42,6 +43,7 @@ Required shape: ${outputContract}`;
 
   const args = [
     MODEL_FLAG, model,
+    "--provider", DEFAULT_PROVIDER,
     "--no-session",
     "--mode", "json",
     "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes",
