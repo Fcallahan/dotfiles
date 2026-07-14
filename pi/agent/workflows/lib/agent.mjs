@@ -62,7 +62,7 @@ Required shape: ${outputContract}`;
         resolve(c);
       }
     };
-    const p = spawn("pi", args, { cwd, env: { ...process.env, PI_OFFLINE: "1" } });
+    const p = spawn("pi", args, { cwd, env: { ...process.env, PI_OFFLINE: "1" }, stdio: ["ignore", "pipe", "pipe"] });
     const kill = setTimeout(() => p.kill("SIGKILL"), timeoutMs);
     p.stdout.on("data", () => {}); // drain; read artifact instead of stdout
     p.stderr.on("data", () => {});
