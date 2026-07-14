@@ -2,6 +2,7 @@
 zsh/.zshrc.local
 gh/hosts.yml
 AGENTS.md
+!pi/agent/AGENTS.md
 
 # Local/temp files
 *.backup

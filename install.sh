@@ -65,6 +65,7 @@ LINKS=(
     "pi/agent/settings.json:$HOME/.pi/agent/settings.json"
     "pi/agent/keybindings.json:$HOME/.pi/agent/keybindings.json"
     "pi/agent/APPEND_SYSTEM.md:$HOME/.pi/agent/APPEND_SYSTEM.md"
+    "pi/agent/AGENTS.md:$HOME/.pi/agent/AGENTS.md"
     "pi/agent/models.json:$HOME/.pi/agent/models.json"
     "pi/agent/themes:$HOME/.pi/agent/themes"
     "pi/agent/zentui.json:$HOME/.pi/agent/zentui.json"
