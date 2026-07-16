@@ -60,6 +60,10 @@ const verifyRun = await runUnits({
   worker: async (c) => spawnAgent({
     tools: "read,bash",
     model: CHEAP_MODEL,
+    // To route refute-verification through the claude/opus harness instead
+    // (higher-stakes reviews only — narrow, subscription-rate-limited):
+    //   role: "verifier", tools: "read,bash",
+    // Leave the CHEAP_MODEL line above as-is for the default behavior.
     outputContract: '{ "verdict": "confirmed" | "rejected", "reason": string, "confidence": number }',
     prompt: `A reviewer claims this finding in ${c.file}: ${JSON.stringify(c.finding)}\nRead the code and surrounding context and try to REFUTE it. Confirm only if there is concrete code evidence.`,
   }),

@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
@@ -80,7 +81,7 @@ export default function (pi: ExtensionAPI) {
       const cwd = path.resolve(ctx.cwd, params.cwd ?? ".");
       const script = resolveWorkflowScript(cwd, params.script);
       const invocationId = `${process.pid}-${started}-${Math.random().toString(36).slice(2)}`;
-      const args = buildNodeArgs(script, params);
+      const args = buildNodeArgs(script, params, cwd);
       let stdout = "";
       let stderr = "";
       let child: ReturnType<typeof spawn> | undefined;
@@ -198,14 +199,52 @@ function isWithin(root: string, candidate: string): boolean {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
-function buildNodeArgs(script: string, params: any): string[] {
-  const args = [script];
+function buildNodeArgs(script: string, params: any, cwd: string): string[] {
+  const args: string[] = [];
+  if (process.env.PI_WF_NO_SANDBOX !== "1") args.push(...buildSandboxArgs(cwd));
+  args.push(script);
   if (params.force) args.push("--force");
   if (params.noResume) args.push("--no-resume");
   if (params.retries !== undefined) args.push("--retries", String(Math.max(0, Math.floor(Number(params.retries)))));
   if (params.concurrency !== undefined) args.push("--concurrency", String(Math.min(MAX_CONCURRENCY, Math.max(1, Math.floor(Number(params.concurrency))))));
   for (const arg of params.args ?? []) args.push(String(arg));
   return args;
+}
+
+// Sandbox-lite: run the workflow script under Node's permission model so a
+// generated workflow (or a subagent it spawns) can't wander outside the
+// project cwd, the OS tmp dir, and the workflows library. Not a hard security
+// boundary — best-effort defense in depth. Opt out with PI_WF_NO_SANDBOX=1.
+//
+// Node's permission model auto-propagates its --permission/--allow-* flags to
+// every child process via NODE_OPTIONS (by design, so a restricted process
+// can't trivially unsandbox itself by shelling out). Each spawnAgent() call
+// spawns `pi`, which is itself a Node script, so it inherits these same
+// restrictions. `pi` needs read/write access to its own global config dir
+// (~/.pi — auth.json, trust.json, run-history.jsonl, settings.json) just to
+// start up and authenticate; without it every subagent spawn fails before it
+// ever gets to the workflow's own cwd/tmp/workflows-dir needs. So ~/.pi is
+// included here too, even though it's broader than "cwd, tmpdir, workflows
+// dir" — it's `pi`'s own trusted state, not the generated workflow's.
+function buildSandboxArgs(cwd: string): string[] {
+  const workflowsDir = path.join(os.homedir(), ".pi", "agent", "workflows");
+  const piHome = path.join(os.homedir(), ".pi");
+  const writePaths = new Set<string>([cwd, os.tmpdir(), workflowsDir, piHome]);
+  for (const dir of [workflowsDir, piHome]) {
+    const real = safeRealpath(dir);
+    if (real) writePaths.add(real);
+  }
+  const args = ["--permission", "--allow-fs-read=*", "--allow-child-process"];
+  for (const p of writePaths) args.push(`--allow-fs-write=${p}`);
+  return args;
+}
+
+function safeRealpath(target: string): string | undefined {
+  try {
+    return fs.realpathSync(target);
+  } catch {
+    return undefined;
+  }
 }
 
 function loadInvocationManifests(cwd: string, invocationId: string): ManifestView[] {
