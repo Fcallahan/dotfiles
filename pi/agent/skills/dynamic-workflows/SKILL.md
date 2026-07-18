@@ -351,3 +351,11 @@ Do not paste every intermediate subagent result into chat.
 - For implementation tasks, prefer one writer and use dynamic workflows for read-only discovery/review/verification around it.
 - Keep generated scripts project-local in `.pi/workflows/`; keep reusable scripts in `~/.pi/agent/workflows/saved/` only when the user asks to save them.
 - If no deterministic unit list can be produced, ask one clarifying question or use normal pi subagents instead.
+
+## Hard-won QC rules (July 2026 audit)
+
+- **Preflight before fan-out.** Verify cwd is a git worktree, disk has headroom, and worker auth (`gh`/`acli`/`claude` CLIs) resolves before spawning any subprocess — 3 runs once died at creation because cwd was `$HOME`, and a WSL `HOME` redirect broke all worker auth for a day.
+- **Checkpoint eagerly.** Append every completed worker's result to an on-disk checkpoint file at completion time; never let results exist only in orchestrator memory until final synthesis — a 25-agent review run lost 2 confirmed bugs to a session limit at delivery time.
+- **Route models by pre-classified shard size.** Know shard size before dispatch: shards with ≤2 items or mechanical verification stages (re-grep, line-number correction) go to a cheap tier (Sonnet-class); reserve premium models (Opus/Fable-class) for large/ambiguous shards and true adversarial-disprove cycles. The audit measured ~58% of premium-tier tokens going to worker stages a cheap model could handle.
+- **Synthesis challenges, never re-derives.** A synthesis/verify stage's prompt must present the prior stage's conclusion and ask it to confirm or falsify with cited evidence — not hand over a raw evidence pack. One synthesis stage burned 132k premium tokens fully re-investigating a conclusion a prior 141k-token stage had already established.
+- **Grant repro permissions up front.** Adversarial-review workers told to reproduce behavior (copy repo to `/tmp` and diff, sandboxed clone, run tests) must be spawned with those commands pre-allowed — audited workers were denied their own required repro steps and silently degraded to static analysis.

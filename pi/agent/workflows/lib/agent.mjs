@@ -1,8 +1,8 @@
 // ~/.pi/agent/workflows/lib/agent.mjs
 import { spawn } from "node:child_process";
-import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 const MODEL_FLAG = "--model"; // verified for this pi build
 const DEFAULT_MODEL = process.env.PI_WF_MODEL ?? "deepseek/deepseek-v4-flash";
@@ -47,6 +47,13 @@ function claudeSettingSourcesArgs() {
 
 const GRACE_MS = 5_000;
 const FIRST_RESPONSE_MS = Number(process.env.PI_WF_FIRST_RESPONSE_MS ?? 60_000);
+
+// Second, independent kill trigger on top of the per-agent timeout below
+// (see "Hard external watchdog" in runSpawnAgent): a child older than
+// timeoutMs * HARD_WATCHDOG_FACTOR gets killed regardless of whether the
+// primary killTimer fired. Checked every HARD_WATCHDOG_CHECK_MS.
+const HARD_WATCHDOG_FACTOR = Number(process.env.PI_WF_HARD_WATCHDOG_FACTOR ?? 1.5);
+const HARD_WATCHDOG_CHECK_MS = Number(process.env.PI_WF_HARD_WATCHDOG_CHECK_MS ?? 30_000);
 
 // --- Usage accounting & failure diagnostics -----------------------------
 // Each child's stdout is NDJSON (pi: `--mode json`; claude: `--output-format
@@ -243,6 +250,116 @@ function installSignalHandlers() {
   }
 }
 
+// --- Preflight gate -------------------------------------------------------
+// Guards against three failure modes that have each killed real runs before
+// a single useful agent spawned:
+//   a) cwd isn't inside a git work tree — 3 real workflow runs died at
+//      `status: created` because cwd was $HOME;
+//   b) the cwd's filesystem is nearly full — a disk-full incident took out
+//      a whole day of runs;
+//   c) $HOME looks container-redirected/empty, i.e. missing the auth
+//      material workers need (the hermes `is_container()` WSL false-positive
+//      once redirected worker HOME and silently broke gh/acli/codex auth).
+// Runs once per resolved cwd (memoized in preflightCache below) and every
+// spawnAgent() call is gated against that cached verdict, so a failing
+// preflight can never let a later spawn for the same cwd sneak through.
+const MIN_FREE_DISK_GB = Number(process.env.PI_WF_MIN_FREE_DISK_GB ?? 5);
+const HOME_MARKERS = [".claude", ".config/gh"]; // any one present is enough
+
+function runCheck(cmd, args, cwd) {
+  return new Promise((resolveCheck) => {
+    let out = "";
+    let err = "";
+    let child;
+    try {
+      child = spawn(cmd, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    } catch (e) {
+      resolveCheck({ code: -1, stdout: "", stderr: String(e?.message ?? e) });
+      return;
+    }
+    child.stdout.on("data", (c) => { out += c; });
+    child.stderr.on("data", (c) => { err += c; });
+    child.on("error", (e) => resolveCheck({ code: -1, stdout: out, stderr: String(e?.message ?? e) }));
+    child.on("close", (code) => resolveCheck({ code, stdout: out, stderr: err }));
+  });
+}
+
+async function checkGitWorkTree(cwd) {
+  const { code, stdout } = await runCheck("git", ["rev-parse", "--is-inside-work-tree"], cwd);
+  const ok = code === 0 && stdout.trim() === "true";
+  return {
+    ok,
+    message: ok ? undefined : `cwd "${cwd}" is not inside a git work tree (git rev-parse --is-inside-work-tree: exit ${code}, stdout ${JSON.stringify(stdout.trim())})`,
+  };
+}
+
+async function checkDiskSpace(cwd) {
+  // `df -Pk` (POSIX output, 1024-byte blocks) is available on both Linux and
+  // macOS — no new dependency needed for a `df` call this codebase already
+  // trusts the platform to provide, same trust level as `git`/`claude`/`pi`.
+  const { code, stdout } = await runCheck("df", ["-Pk", cwd], cwd);
+  if (code !== 0) {
+    return { ok: false, message: `could not determine free disk space for "${cwd}" (df exit ${code})` };
+  }
+  const dataLine = stdout.trim().split("\n").slice(1)[0] ?? "";
+  const availKb = Number(dataLine.trim().split(/\s+/)[3]);
+  if (!Number.isFinite(availKb)) {
+    return { ok: false, message: `could not parse df output for "${cwd}": ${JSON.stringify(dataLine)}` };
+  }
+  const availGb = availKb / (1024 * 1024);
+  const ok = availGb >= MIN_FREE_DISK_GB;
+  return { ok, availGb, message: ok ? undefined : `only ${availGb.toFixed(2)}GB free on "${cwd}"'s filesystem (need >= ${MIN_FREE_DISK_GB}GB)` };
+}
+
+async function checkHomeSanity() {
+  const home = process.env.HOME;
+  if (!home) return { ok: false, message: "$HOME is not set" };
+  for (const marker of HOME_MARKERS) {
+    const found = await access(join(home, marker)).then(() => true, () => false);
+    if (found) return { ok: true };
+  }
+  return {
+    ok: false,
+    message: `$HOME ("${home}") is missing expected auth material (none of ${HOME_MARKERS.join(", ")} found) — looks container-redirected/empty`,
+  };
+}
+
+// Runs all three checks and returns a single verdict. `checks` carries each
+// individual sub-result for diagnostics (written to the run's events log by
+// runUnits() in runtime.mjs, not just stderr, per the incident this guards
+// against).
+export async function preflight(cwd = process.cwd()) {
+  const resolvedCwd = resolve(cwd);
+  const [gitWorkTree, diskSpace, homeSanity] = await Promise.all([
+    checkGitWorkTree(resolvedCwd),
+    checkDiskSpace(resolvedCwd),
+    checkHomeSanity(),
+  ]);
+  const checks = { gitWorkTree, diskSpace, homeSanity };
+  const reasons = Object.values(checks).filter((c) => !c.ok).map((c) => c.message);
+  return { ok: reasons.length === 0, cwd: resolvedCwd, checks, reason: reasons.join("; ") || undefined };
+}
+
+// Memoized per resolved cwd so the real checks (git/df/fs syscalls) only run
+// once; every spawnAgent() call for that cwd reuses the cached verdict.
+const preflightCache = new Map();
+function preflightCached(cwd) {
+  const key = resolve(cwd);
+  let cached = preflightCache.get(key);
+  if (!cached) {
+    cached = preflight(cwd);
+    preflightCache.set(key, cached);
+  }
+  return cached;
+}
+
+// Test-only escape hatch: forget cached verdicts so preflight can be
+// re-evaluated (e.g. between unit tests, or after fixing the underlying
+// condition mid-process).
+export function _resetPreflightCache() {
+  preflightCache.clear();
+}
+
 // Spawn one isolated headless subagent, pi or claude. Resolves { ok, result, code, ... }.
 async function runSpawnAgent({
   prompt,
@@ -260,6 +377,14 @@ async function runSpawnAgent({
 }) {
   if (signal.aborted) {
     return { ok: false, result: null, code: null, aborted: true };
+  }
+
+  const preflightResult = await preflightCached(cwd);
+  if (!preflightResult.ok) {
+    return {
+      ok: false, result: null, code: null,
+      preflightFailed: true, preflightReason: preflightResult.reason, preflightChecks: preflightResult.checks,
+    };
   }
 
   let releaseSlot;
@@ -371,6 +496,7 @@ Write your JSON result to this exact path: ${outPath}`;
 
     let timedOut = false;
     let watchdogTimeout = false;
+    let hardWatchdogTripped = false;
     let sawOutput = false;
 
     // Line-buffered NDJSON accumulation across both harnesses (see the
@@ -382,6 +508,14 @@ Write your JSON result to this exact path: ${outPath}`;
     let claudeResultEvent = null;
     let stderrTail = "";
 
+    // Wall-clock start time, read outside the executor so it survives past
+    // the `await` below (see duration accounting after the promise settles).
+    // process.hrtime.bigint() is monotonic and used alongside it so
+    // host-suspend inflation is distinguishable: wall clock keeps advancing
+    // through a suspend, monotonic time on many platforms does not.
+    const startedAtWallMs = Date.now();
+    const startedAtMonoNs = process.hrtime.bigint();
+
     const code = await new Promise((resolve) => {
       let settled = false;
       let abortListener;
@@ -390,6 +524,7 @@ Write your JSON result to this exact path: ${outPath}`;
         settled = true;
         clearTimeout(killTimer);
         clearTimeout(watchdogTimer);
+        clearInterval(hardWatchdogInterval);
         if (abortListener) signal.removeEventListener("abort", abortListener);
         resolve(c);
       };
@@ -412,6 +547,26 @@ Write your JSON result to this exact path: ${outPath}`;
         watchdogTimer = setTimeout(() => { watchdogTimeout = true; killGracefully(p); }, FIRST_RESPONSE_MS);
       }
 
+      // --- Hard external watchdog ------------------------------------------
+      // killTimer above relies on setTimeout, whose delay is measured against
+      // Node's monotonic clock — on some platforms that clock does not
+      // advance while the host is suspended, so a laptop/VM sleep can
+      // silently disarm it (observed: a ~20min configured timeout let a run
+      // continue for 554 minutes). This is a second, independent trigger
+      // compared against Date.now() (wall clock, which DOES advance through
+      // a suspend), re-checked on every stdout/stderr wakeup AND on a
+      // periodic interval, so a hung/suspended-then-woken child aged past
+      // 1.5x its timeout gets killed even if killTimer never fired.
+      const checkHardWatchdogAge = () => {
+        if (settled || hardWatchdogTripped) return;
+        if (Date.now() - startedAtWallMs > timeoutMs * HARD_WATCHDOG_FACTOR) {
+          hardWatchdogTripped = true;
+          killGracefully(p);
+        }
+      };
+      const hardWatchdogInterval = setInterval(checkHardWatchdogAge, HARD_WATCHDOG_CHECK_MS);
+      hardWatchdogInterval.unref?.();
+
       p.stdout.on("data", (chunk) => {
         // The real answer is read from the artifact, not stdout — but the
         // stream still carries per-call usage/cost that only exists while
@@ -421,6 +576,7 @@ Write your JSON result to this exact path: ${outPath}`;
           sawOutput = true;
           clearTimeout(watchdogTimer);
         }
+        checkHardWatchdogAge(); // any real I/O is also an "event-loop wakeup"
         stdoutBuffer += chunk.toString("utf8");
         const lines = stdoutBuffer.split("\n");
         stdoutBuffer = lines.pop() ?? ""; // keep the trailing partial line for next chunk
@@ -443,6 +599,7 @@ Write your JSON result to this exact path: ${outPath}`;
         }
       });
       p.stderr.on("data", (chunk) => {
+        checkHardWatchdogAge();
         stderrTail = (stderrTail + chunk.toString("utf8")).slice(-STDERR_TAIL_MAX);
       });
 
@@ -462,10 +619,18 @@ Write your JSON result to this exact path: ${outPath}`;
     const usage = harness === "claude" ? claudeUsageFromResult(claudeResultEvent) : (Object.keys(piUsageAcc).length ? { ...piUsageAcc } : undefined);
     const rateLimited = harness === "claude" ? classifyRateLimited(claudeResultEvent, stderrTail) : undefined;
 
+    // Duration accounting: both clocks logged (see startedAtWallMs/
+    // startedAtMonoNs above) so a suspend-inflated wall-clock duration next
+    // to a normal monotonic one is visible directly on the manifest entry
+    // instead of requiring a repro.
+    const durationWallMs = Date.now() - startedAtWallMs;
+    const durationMonoMs = Number(process.hrtime.bigint() - startedAtMonoNs) / 1e6;
+    const durationFields = { durationWallMs, durationMonoMs, ...(hardWatchdogTripped ? { hardWatchdogTripped } : {}) };
+
     if (watchdogTimeout) {
       return {
         ok: false, result: null, code, workDir: dir, promptPath, outPath, aborted: signal.aborted, watchdogTimeout: true,
-        usage, stderrTail, ...(rateLimited ? { rateLimited } : {}),
+        usage, stderrTail, ...durationFields, ...(rateLimited ? { rateLimited } : {}),
       };
     }
 
@@ -474,12 +639,12 @@ Write your JSON result to this exact path: ${outPath}`;
       if (process.env.PI_WF_KEEP_TMP !== "1") {
         await rm(dir, { recursive: true, force: true }).catch(() => {});
       }
-      return { ok: true, result, code, workDir: dir, promptPath, outPath, cleaned: true, usage };
+      return { ok: true, result, code, workDir: dir, promptPath, outPath, cleaned: true, usage, ...durationFields };
     } catch {
       // Keep dir on failure for debugging.
       return {
         ok: false, result: null, code, workDir: dir, promptPath, outPath, aborted: signal.aborted, timedOut,
-        usage, stderrTail, ...(rateLimited ? { rateLimited } : {}),
+        usage, stderrTail, ...durationFields, ...(rateLimited ? { rateLimited } : {}),
       };
     }
   } finally {

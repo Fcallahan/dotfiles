@@ -1,8 +1,8 @@
 // ~/.pi/agent/workflows/lib/runtime.mjs
 import { createHash, randomUUID } from "node:crypto";
-import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, mkdir, open, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { agentForRole, mapLimit, workflowSignal } from "./agent.mjs";
+import { agentForRole, mapLimit, preflight, workflowSignal } from "./agent.mjs";
 
 export function parseWorkflowArgs(argv = process.argv.slice(2)) {
   const out = { positionals: [], resume: true, force: false };
@@ -85,6 +85,44 @@ async function writeJsonAtomic(path, value) {
   await rename(tmp, path);
 }
 
+// Durable NDJSON append: opens in append mode, writes, fsyncs, closes. Used
+// for the run's events log and eager checkpoint file (see runUnits' eventsPath
+// / checkpointPath below) — both need to survive the orchestrator process
+// being killed mid-run, so a plain fs.appendFile (which only guarantees the
+// write left this process, not that it's actually on disk) isn't enough.
+// Concurrent callers are safe: each write is a single small O_APPEND write()
+// syscall, which POSIX guarantees is atomic against interleaving on a local
+// filesystem.
+async function appendNdjson(path, value) {
+  await mkdir(dirname(path), { recursive: true });
+  const line = `${JSON.stringify({ ts: new Date().toISOString(), ...value })}\n`;
+  const handle = await open(path, "a");
+  try {
+    await handle.appendFile(line, "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+// --- Dead-run detector -----------------------------------------------------
+// A child can exit 0 having produced almost nothing (observed: 34 tokens,
+// "I'll analyze...", then stopped) — a distinct failure mode from a normal
+// ok/failed result that used to get swallowed by a silent manual retry,
+// making run counts ambiguous. "Near-empty" is measured on the serialized
+// result JSON (what callers actually consume via the artifact), not raw
+// stdout. Exported so it can be unit-tested directly.
+const DEAD_RUN_MIN_CHARS = 200;
+export function classifyDeadRun(result) {
+  if (result == null) return true;
+  const text = typeof result === "string" ? result : JSON.stringify(result);
+  return text.length < DEAD_RUN_MIN_CHARS;
+}
+
+// Cap on how much of a unit's output text lands in checkpoint.ndjson per
+// entry, so one outsized result can't blow up the checkpoint file.
+const CHECKPOINT_OUTPUT_MAX_CHARS = 20_000;
+
 function defaultUnitKey(unit) {
   if (typeof unit === "string" || typeof unit === "number" || typeof unit === "boolean") return String(unit);
   if (unit && typeof unit === "object") return String(unit.id ?? unit.key ?? unit.path ?? unit.file ?? stableStringify(unit));
@@ -118,7 +156,14 @@ function normalizeWorkerResult(raw) {
     // and failure diagnostics (when present) so they're visible on the
     // manifest entry instead of only in-memory. `usage` and `stderrTail`
     // aren't booleans but the same "copy if present" pass-through applies.
-    for (const flag of ["aborted", "watchdogTimeout", "timedOut", "cleaned", "rateLimited", "usage", "stderrTail"]) {
+    // durationWallMs/durationMonoMs/hardWatchdogTripped and the preflight*
+    // fields follow the same pattern (see agent.mjs's hard watchdog and
+    // preflight gate).
+    for (const flag of [
+      "aborted", "watchdogTimeout", "timedOut", "cleaned", "rateLimited", "usage", "stderrTail",
+      "durationWallMs", "durationMonoMs", "hardWatchdogTripped",
+      "preflightFailed", "preflightReason", "preflightChecks",
+    ]) {
       if (Object.hasOwn(raw, flag)) meta[flag] = raw[flag];
     }
     return { ok: Boolean(raw.ok), result: raw.result, code: raw.code, meta };
@@ -200,6 +245,10 @@ export async function runUnits({
   maxCostUsd,
   maxTotalTokens,
   escalate,
+  // The cwd workers actually dispatch subprocesses into (matches
+  // spawnAgent()'s own default) — used only for the preflight gate below;
+  // does not change where any worker's own spawnAgent({ cwd }) runs.
+  cwd = process.cwd(),
 } = {}) {
   if (!name) throw new Error("runUnits requires name");
   if (!Array.isArray(units)) throw new Error("runUnits requires units array");
@@ -219,10 +268,58 @@ export async function runUnits({
 
   const runDirAbs = resolve(runDir ?? join(process.cwd(), ".pi", "workflows", "runs", slugify(name, "workflow")));
   const manifestPath = join(runDirAbs, "manifest.json");
+  const eventsPath = join(runDirAbs, "events.ndjson");
+  const checkpointPath = join(runDirAbs, "checkpoint.ndjson");
   await mkdir(join(runDirAbs, "units"), { recursive: true });
 
-  const loaded = force ? undefined : await readJson(manifestPath);
   const now = new Date().toISOString();
+
+  // --- Preflight gate ------------------------------------------------------
+  // Runs once, up front, before a single unit/worker/subprocess for this run
+  // starts (agent.mjs's preflightCached also memoizes per-cwd across
+  // spawnAgent() calls — this is what lets a failing preflight short-circuit
+  // the ENTIRE run here instead of every unit independently discovering and
+  // failing on the same condition). See agent.mjs's preflight() for what's
+  // checked (git work tree, free disk, $HOME sanity).
+  const preflightResult = await preflight(cwd);
+  if (!preflightResult.ok) {
+    await appendNdjson(eventsPath, {
+      type: "preflight_failed", name, cwd: preflightResult.cwd, reason: preflightResult.reason, checks: preflightResult.checks,
+    });
+    const failedManifest = {
+      schemaVersion: 1,
+      invocationId: process.env.PI_DYNAMIC_WORKFLOW_RUN_ID,
+      name,
+      task,
+      runDir: runDirAbs,
+      createdAt: now,
+      updatedAt: now,
+      status: "preflight_failed",
+      preflight: preflightResult,
+      totalUsage: {},
+      options: { concurrency, retries, resume, force, maxCostUsd, maxTotalTokens },
+      units: {},
+      counts: { total: units.length, done: 0, failed: 0, pending: 0, running: 0, preflight_failed: units.length },
+    };
+    await writeJsonAtomic(manifestPath, failedManifest);
+    return {
+      name,
+      runDir: runDirAbs,
+      manifestPath,
+      manifest: failedManifest,
+      units: [],
+      results: [],
+      done: [],
+      failed: [],
+      skipped: [],
+      counts: failedManifest.counts,
+      totalUsage: failedManifest.totalUsage,
+      preflightFailed: true,
+      preflight: preflightResult,
+    };
+  }
+
+  const loaded = force ? undefined : await readJson(manifestPath);
   const manifest = {
     schemaVersion: 1,
     invocationId: process.env.PI_DYNAMIC_WORKFLOW_RUN_ID,
@@ -314,6 +411,7 @@ export async function runUnits({
       entry.attempts = 0;
       delete entry.error;
       delete entry.rateLimitWaits;
+      delete entry.deadRunRetried;
       await saveManifest();
     }
 
@@ -354,14 +452,62 @@ export async function runUnits({
         if (!normalized.ok) throw new Error(`worker returned ok=false code=${normalized.code ?? "unknown"}`);
         const err = validationError(validate, normalized.result);
         if (err) throw new Error(`result validation failed: ${err}`);
+
+        // --- Dead-run detector ---------------------------------------------
+        // Child exited ok and passed schema validation, but produced
+        // near-nothing (see classifyDeadRun above — e.g. 34 tokens then
+        // silence). First occurrence per unit gets exactly one free retry
+        // (doesn't consume the configured retry budget — same "free pass"
+        // shape as the rate-limit branch below); a second dead run in a row
+        // is accepted as terminal but stays tagged 'dead_run' rather than
+        // silently reported as 'done', so run counts stay unambiguous.
+        const deadRun = classifyDeadRun(normalized.result);
+        if (deadRun && !entry.deadRunRetried) {
+          entry.deadRunRetried = true;
+          entry.updatedAt = new Date().toISOString();
+          await appendNdjson(eventsPath, {
+            type: "dead_run", name, unit: key, label: entry.label, attempt: entry.attempts,
+            outputChars: JSON.stringify(normalized.result ?? "").length, artifact: entry.artifact, retrying: true,
+          });
+          entry.status = "pending";
+          entry.attempts--; // free retry — see rate-limit branch below for the same pattern
+          await saveManifest();
+          continue;
+        }
+
         await writeJsonAtomic(entry.artifact, normalized.result);
-        entry.status = "done";
+        entry.status = deadRun ? "dead_run" : "done";
         entry.finishedAt = new Date().toISOString();
         entry.updatedAt = entry.finishedAt;
         delete entry.error;
         await saveManifest();
+        if (deadRun) {
+          await appendNdjson(eventsPath, {
+            type: "dead_run", name, unit: key, label: entry.label, attempt: entry.attempts,
+            outputChars: JSON.stringify(normalized.result ?? "").length, artifact: entry.artifact, retrying: false,
+          });
+        }
+
+        // --- Eager checkpoint -----------------------------------------------
+        // Appended synchronously (fsync'd — see appendNdjson) the moment THIS
+        // unit finishes, not batched to the end of the whole run: a
+        // session-limit/rate-limit death mid-run has previously destroyed
+        // 100% of a run's completed results because nothing was persisted
+        // incrementally.
+        await appendNdjson(checkpointPath, {
+          run: name,
+          unit: key,
+          agent: entry.label,
+          task: String(task ?? "").slice(0, 150),
+          status: entry.status,
+          code: normalized.code,
+          attempts: entry.attempts,
+          artifact: entry.artifact,
+          output: (typeof normalized.result === "string" ? normalized.result : JSON.stringify(normalized.result)).slice(0, CHECKPOINT_OUTPUT_MAX_CHARS),
+        });
+
         checkBudget();
-        return { ...meta, status: "done", skipped: false, result: normalized.result, code: normalized.code, artifact: entry.artifact, attempts: entry.attempts };
+        return { ...meta, status: entry.status, skipped: false, result: normalized.result, code: normalized.code, artifact: entry.artifact, attempts: entry.attempts };
       } catch (err) {
         entry.error = err?.stack || err?.message || String(err);
         entry.updatedAt = new Date().toISOString();

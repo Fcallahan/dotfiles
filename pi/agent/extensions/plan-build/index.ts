@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Key } from "@earendil-works/pi-tui";
 import { loadConfig } from "pi-zentui/extensions/zentui/config";
 import { PolishedEditor } from "pi-zentui/extensions/zentui/ui";
+import { createModeToggleGuard } from "./mode-toggle.ts";
 import { isReadOnlyCommand } from "./utils.ts";
 
 type Mode = "plan" | "build";
@@ -23,6 +24,9 @@ const READ_ONLY_TOOLS = new Set([
 export default function planBuildExtension(pi: ExtensionAPI): void {
   let mode: Mode = "build";
   let toolsBeforePlan: string[] | undefined;
+  // Track mid-turn mode changes so the context handler can inject a message
+  // on the very next LLM call, overriding the stale [PLAN MODE ACTIVE] prompt.
+  let midTurnModeChange: Mode | null = null;
 
   pi.registerFlag("plan", {
     description: "Start in enforced read-only plan mode",
@@ -44,6 +48,7 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
     if (mode !== "plan") toolsBeforePlan = pi.getActiveTools();
     mode = "plan";
     pi.setActiveTools((toolsBeforePlan ?? pi.getActiveTools()).filter((name) => READ_ONLY_TOOLS.has(name)));
+    midTurnModeChange = "plan";
     updateUi(ctx);
     if (persistChange) persist();
     ctx.ui.notify("Plan mode: read-only tools enforced.", "info");
@@ -53,6 +58,7 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
     mode = "build";
     if (toolsBeforePlan) pi.setActiveTools(toolsBeforePlan);
     toolsBeforePlan = undefined;
+    midTurnModeChange = "build";
     updateUi(ctx);
     if (persistChange) persist();
     ctx.ui.notify("Build mode: full tool access restored.", "info");
@@ -84,7 +90,12 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
     },
   });
 
+  const shouldToggleMode = createModeToggleGuard();
   const toggleMode = async (ctx: ExtensionContext): Promise<void> => {
+    // Legacy terminals report held Shift+Tab as repeated identical escape
+    // sequences (or swallow it entirely for backward tab-completion).
+    // Ignore the duplicate events so one keypress toggles once.
+    if (!shouldToggleMode()) return;
     if (mode === "plan") enterBuild(ctx);
     else enterPlan(ctx);
   };
@@ -95,7 +106,7 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
   });
 
   pi.registerShortcut(Key.ctrlAlt("p"), {
-    description: "Toggle plan/build mode",
+    description: "Toggle plan/build mode (fallback when Shift+Tab is eaten by terminal)",
     handler: toggleMode,
   });
 
@@ -125,6 +136,30 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
     };
   });
 
+  // Inject a message into the next LLM call when mode changed mid-turn.
+  // This overrides the stale [PLAN MODE ACTIVE] system prompt that was
+  // baked into the agent's context at the start of the turn.
+  pi.on("context", async (event) => {
+    if (!midTurnModeChange) return;
+    const change = midTurnModeChange;
+    midTurnModeChange = null;
+
+    const message =
+      change === "build"
+        ? {
+            role: "system" as const,
+            content:
+              "[BUILD MODE]\nPlan mode has been deactivated. You now have full tool access — every tool and command is available. Continue with what you were doing.",
+          }
+        : {
+            role: "system" as const,
+            content:
+              "[PLAN MODE ACTIVE]\nPlan mode has been activated. You are now in read-only mode. Inspect and reason — do not modify files, install packages, change git state, deploy, or change system state.",
+          };
+
+    return { messages: [...event.messages, message] };
+  });
+
   pi.on("session_start", async (_event, ctx) => {
     ctx.ui.setEditorComponent((tui, theme, keybindings) =>
       new PolishedEditor(
@@ -139,7 +174,7 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
             : ctx.ui.theme.fg("warning", "BUILD");
           const details = ctx.ui.theme.fg(
             "success",
-            `⇧Tab  (${ctx.model?.provider ?? "unknown"}) ${ctx.model?.id ?? "no-model"}`,
+            `⇧Tab/Ctrl+Alt+P  (${ctx.model?.provider ?? "unknown"}) ${ctx.model?.id ?? "no-model"}`,
           );
           return {
             modelLabel: `${modeLabel} ${details}`,

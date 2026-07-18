@@ -110,9 +110,14 @@ setopt HIST_VERIFY
 setopt INC_APPEND_HISTORY
 
 # History settings
-HISTSIZE=10000
-SAVEHIST=10000
-HISTFILE=~/.zsh_history
+HISTSIZE=100000
+SAVEHIST=100000
+HISTFILE="$HOME/.zsh_history"
+
+# Open the current command buffer in $VISUAL/$EDITOR with Ctrl-E.
+autoload -Uz edit-command-line
+zle -N edit-command-line
+bindkey '^E' edit-command-line
 
 # ===== ALIASES =====
 # System shortcuts
@@ -833,6 +838,10 @@ export BROWSER="$HOME/.local/bin/browser-launcher.sh"
 
 # lazydocker alias
 alias lzd='lazydocker'
+
+# Hermes review inbox watcher
+alias hermes-review-watch='python3 /home/franciscallahan/code/hermes-webui/scripts/hermes_review_watch.py'
+alias hermes-watch='python3 /home/franciscallahan/code/hermes-webui/scripts/hermes_review_watch.py --tui'
 
 # Auto-start GitHub notification watcher
 if ! tmux has-session -t gh-watch 2>/dev/null; then

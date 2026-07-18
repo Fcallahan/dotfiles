@@ -69,7 +69,22 @@ git diff --stat
 git status --short
 ```
 
-### Step 3: Draft the commit message
+### Step 3: Format EMSmart2.0 changes
+
+When the repository is EMSmart2.0 and `EMSmartApi.sln` exists at the worktree
+root, run formatting before drafting or executing the commit:
+
+```bash
+dotnet format EMSmartApi.sln
+```
+
+If formatting fails, stop and report the failure; do not commit. After a
+successful format, rerun `git status --short` and review the resulting diff so
+the commit message and staged files include all formatter changes.
+
+Skip this step for other repositories.
+
+### Step 4: Draft the commit message
 
 Format:
 ```
@@ -88,7 +103,7 @@ For example:
 - Detection in Program.cs for the seed flag
 ```
 
-### Step 4: Present to user for verification
+### Step 5: Present to user for verification
 
 Show the user the full commit message you intend to use. **Ask them to confirm**
 before running `git commit`.
@@ -103,7 +118,7 @@ before running `git commit`.
 
 Wait for explicit approval. If they ask for changes, revise and re-present.
 
-### Step 5: Execute
+### Step 6: Execute
 
 ```bash
 git commit -m "$TITLE" -m "$BODY"
@@ -196,3 +211,5 @@ gh pr create --base stage --title "$TITLE" --body "$BODY"
   branches in a regular clone.
 - Always follow the verification step. Never commit or merge without showing
   the user the exact title and description first.
+- Before regular commits in EMSmart2.0, run `dotnet format EMSmartApi.sln` and
+  review the formatter's changes. Never commit if formatting fails.

@@ -17,8 +17,8 @@ Modes:
 
 Environment:
   DICTATION_CLEANUP_PROVIDER          Default: openrouter
-  DICTATION_CLEANUP_MODEL             Default: qwen/qwen3.5-9b
-  DICTATION_CLEANUP_THINKING          Default: off
+  DICTATION_CLEANUP_MODEL             Default: deepseek/deepseek-v4-flash
+  DICTATION_CLEANUP_THINKING          Default: high
   DICTATION_CLEANUP_PI_BIN            Default: pi
   DICTATION_CLEANUP_TIMEOUT_SECONDS   Default: 300
   DICTATION_CLEANUP_REPLACEMENTS      Default: <repo>/dictation/replacements.tsv
@@ -68,8 +68,8 @@ REPLACEMENTS_FILE="${DICTATION_CLEANUP_REPLACEMENTS:-$SCRIPT_DIR/replacements.ts
 VOCABULARY_FILE="${DICTATION_CLEANUP_VOCABULARY:-$SCRIPT_DIR/vocabulary.txt}"
 PI_BIN="${DICTATION_CLEANUP_PI_BIN:-pi}"
 PROVIDER="${DICTATION_CLEANUP_PROVIDER:-openrouter}"
-MODEL="${DICTATION_CLEANUP_MODEL:-qwen/qwen3.5-9b}"
-THINKING="${DICTATION_CLEANUP_THINKING:-off}"
+MODEL="${DICTATION_CLEANUP_MODEL:-deepseek/deepseek-v4-flash}"
+THINKING="${DICTATION_CLEANUP_THINKING:-high}"
 TIMEOUT_SECONDS="${DICTATION_CLEANUP_TIMEOUT_SECONDS:-300}"
 
 apply_replacements() {

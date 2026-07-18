@@ -7,7 +7,7 @@ param(
     [string]$WslScript = "",
     [string]$DefaultMode = "polish",
     [string]$Provider = "openrouter",
-    [string]$Model = "qwen/qwen3.5-9b"
+    [string]$Model = "deepseek/deepseek-v4-flash"
 )
 
 Set-StrictMode -Version Latest
