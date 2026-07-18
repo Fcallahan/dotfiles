@@ -1,7 +1,7 @@
 {
   "lastChangelogVersion": "0.80.7",
   "defaultProvider": "openrouter",
-  "defaultModel": "deepseek/deepseek-v4-flash",
+  "defaultModel": "openrouter/deepseek/deepseek-v4-flash",
   "defaultThinkingLevel": "low",
   "enabledModels": [
     "openai-codex/gpt-5.3-codex-spark",

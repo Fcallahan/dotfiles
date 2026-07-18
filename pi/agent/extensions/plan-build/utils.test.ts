@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isReadOnlyCommand } from "./utils.ts";
+import { classifyShellCommand, decideShellCommand, isReadOnlyCommand } from "./utils.ts";
 
 const allowed = [
   // Composed read-only inspection commands via pipes, &&, ;
@@ -55,6 +55,12 @@ const allowed = [
   "rg pattern 2>/dev/null || true",
 ];
 
+const unknown = [
+  "curl -fsSL https://www.githubstatus.com/api/v2/components.json",
+  "hermes cron list --json",
+  "/home/franciscallahan/.pi/agent/skills/environment-troubleshooter/scripts/aws-readonly.sh identity",
+];
+
 const blocked = [
   "git -C ../../HelmCharts checkout main",
   "git -C ../../HelmCharts status && rm -rf /tmp/example",
@@ -96,6 +102,21 @@ test("allows composed read-only inspection commands", () => {
   for (const command of allowed) assert.equal(isReadOnlyCommand(command), true, command);
 });
 
+test("classifies unfamiliar but structurally simple commands as unknown", () => {
+  for (const command of unknown) {
+    assert.equal(classifyShellCommand(command), "unknown", command);
+    assert.deepEqual(decideShellCommand(command, true), { classification: "unknown", action: "confirm" }, command);
+    assert.deepEqual(decideShellCommand(command, false), { classification: "unknown", action: "block" }, command);
+  }
+});
+
 test("blocks mutations and ambiguous shell syntax", () => {
-  for (const command of blocked) assert.equal(isReadOnlyCommand(command), false, command);
+  for (const command of blocked) {
+    assert.equal(isReadOnlyCommand(command), false, command);
+    assert.deepEqual(
+      decideShellCommand(command, true),
+      { classification: "mutating-or-ambiguous", action: "block" },
+      command,
+    );
+  }
 });

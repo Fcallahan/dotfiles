@@ -3,7 +3,7 @@ import { Key } from "@earendil-works/pi-tui";
 import { loadConfig } from "pi-zentui/extensions/zentui/config";
 import { PolishedEditor } from "pi-zentui/extensions/zentui/ui";
 import { createModeToggleGuard } from "./mode-toggle.ts";
-import { isReadOnlyCommand } from "./utils.ts";
+import { decideShellCommand } from "./utils.ts";
 
 type Mode = "plan" | "build";
 
@@ -110,7 +110,7 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
     handler: toggleMode,
   });
 
-  pi.on("tool_call", async (event) => {
+  pi.on("tool_call", async (event, ctx) => {
     if (mode !== "plan") return;
     if (!READ_ONLY_TOOLS.has(event.toolName)) {
       return {
@@ -120,11 +120,30 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
     }
     if (event.toolName === "bash") {
       const command = String(event.input.command ?? "");
-      if (!isReadOnlyCommand(command)) {
+      const decision = decideShellCommand(command, ctx.hasUI);
+      if (decision.classification === "mutating-or-ambiguous") {
         return {
           block: true,
-          reason: `Plan mode blocked a non-allowlisted shell command. Run /build first.\nCommand: ${command}`,
+          reason: `Plan mode blocked a mutating or ambiguous shell command. Run /build first.\nCommand: ${command}`,
         };
+      }
+      if (decision.action === "block") {
+        return {
+          block: true,
+          reason: `Plan mode could not confirm this unknown shell command in a headless session. Use a known read-only command or run in build mode.\nCommand: ${command}`,
+        };
+      }
+      if (decision.action === "confirm") {
+        const allowed = await ctx.ui.confirm(
+          "Plan mode: unknown shell command",
+          `This command is not recognized as read-only. Run it once?\n\n${command}`,
+        );
+        if (!allowed) {
+          return {
+            block: true,
+            reason: `Plan mode blocked an unconfirmed shell command. Use a known read-only command or run /build first.\nCommand: ${command}`,
+          };
+        }
       }
     }
   });

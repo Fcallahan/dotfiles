@@ -28,7 +28,7 @@ const SAFE_VERSION = /^\s*(?:node|python|python3|ruby|go|rustc|cargo)\s+--versio
 const SAFE_PSQL = /^\s*psql\b.*(?:-c|--command(?:=|\s))\s*["']\s*BEGIN\s+(?:TRANSACTION\s+)?READ\s+ONLY\s*;/i;
 const SAFE_BUILTIN = /^\s*(?:true|false|:)\s*$/i;
 
-const MUTATION = /\b(?:rm|rmdir|mv|cp|mkdir|touch|chmod|chown|ln|truncate|dd|shred|sudo|su|kill|pkill|killall)\b|\bgit(?:\s+-C\s+(?:"[^"]+"|'[^']+'|\S+))*\s+(?:add|commit|push|pull|merge|rebase|reset|checkout|switch|restore|stash|cherry-pick|revert|tag|init|clone|clean)\b|\b(?:npm|pnpm|yarn)\s+(?:install|add|remove|uninstall|update|ci|link|publish)\b|\b(?:pip|pip3)\s+(?:install|uninstall)\b|\b(?:apt|apt-get|brew|dnf|yum|pacman)\s+(?:install|remove|purge|update|upgrade)\b|\b(?:vim|vi|nano|emacs|code|subl)\b|\bgh\s+(?:pr\s+(?:checkout|merge|close|reopen|ready|review|create|edit)|issue\s+(?:close|reopen|create|edit)|api\s+--method\s+(?:POST|PUT|PATCH|DELETE)|release\s+create|repo\s+(?:create|fork|rename|archive|delete)|secret\s+(?:set|remove)|variable\s+(?:set|remove))\b|\bacli\s+(?:jira\s+(?:workitem\s+(?:create|update|delete|transition)|project\s+create|board\s+create))\b|\baws\s+\S+\s+(?:cp\b|mv\b|sync\b|create-|delete-|update-|put-|post-|patch-|terminate-|stop-|start-|reboot-|run-|modify-|attach-|detach-|import-|export-|cancel-)\b|\bkubectl\s+(?:apply|create|delete|edit|patch|replace|rollout|scale|autoscale|label|annotate|taint|cordon|uncordon|drain|exec|attach|cp|port-forward|proxy|run|expose|set|config\s+(?:set|use-context|delete-context|rename-context))\b|\bdocker\s+(?:run|exec|start|stop|restart|kill|pause|unpause|rm|rmi|pull|push|build|commit|tag|save|load|export|import|cp|rename|update|create|network\s+(?:create|connect|disconnect|rm)|volume\s+(?:create|rm)|system\s+prune)\b|\bdotnet\s+(?:build|test|run|publish|pack|clean|restore|nuget|add|remove|new|tool\s+(?:install|uninstall|update)|format|watch|ef)\b/i;
+const MUTATION = /\b(?:rm|rmdir|mv|cp|mkdir|touch|chmod|chown|ln|truncate|dd|shred|sudo|su|kill|pkill|killall)\b|\bpsql\b.*\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|CALL)\b|\bcurl\b.*(?:--request|-X)\s*(?:POST|PUT|PATCH|DELETE)\b|\bcurl\b.*(?:--data(?:-binary|-raw|-urlencode)?|-d|--upload-file|-T)\b|\bgit(?:\s+-C\s+(?:"[^"]+"|'[^']+'|\S+))*\s+(?:add|commit|push|pull|merge|rebase|reset|checkout|switch|restore|stash|cherry-pick|revert|tag|init|clone|clean)\b|\b(?:npm|pnpm|yarn)\s+(?:install|add|remove|uninstall|update|ci|link|publish)\b|\b(?:pip|pip3)\s+(?:install|uninstall)\b|\b(?:apt|apt-get|brew|dnf|yum|pacman)\s+(?:install|remove|purge|update|upgrade)\b|\b(?:vim|vi|nano|emacs|code|subl)\b|\bgh\s+(?:pr\s+(?:checkout|merge|close|reopen|ready|review|create|edit)|issue\s+(?:close|reopen|create|edit)|api\s+--method\s+(?:POST|PUT|PATCH|DELETE)|release\s+create|repo\s+(?:create|fork|rename|archive|delete)|secret\s+(?:set|remove)|variable\s+(?:set|remove))\b|\bacli\s+(?:jira\s+(?:workitem\s+(?:create|update|delete|transition)|project\s+create|board\s+create))\b|\baws\s+\S+\s+(?:cp\b|mv\b|sync\b|create-|delete-|update-|put-|post-|patch-|terminate-|stop-|start-|reboot-|run-|modify-|attach-|detach-|import-|export-|cancel-)\b|\bkubectl\s+(?:apply|create|delete|edit|patch|replace|rollout|scale|autoscale|label|annotate|taint|cordon|uncordon|drain|exec|attach|cp|port-forward|proxy|run|expose|set|config\s+(?:set|use-context|delete-context|rename-context))\b|\bdocker\s+(?:run|exec|start|stop|restart|kill|pause|unpause|rm|rmi|pull|push|build|commit|tag|save|load|export|import|cp|rename|update|create|network\s+(?:create|connect|disconnect|rm)|volume\s+(?:create|rm)|system\s+prune)\b|\bdotnet\s+(?:build|test|run|publish|pack|clean|restore|nuget|add|remove|new|tool\s+(?:install|uninstall|update)|format|watch|ef)\b/i;
 
 function isSafeSimpleCommand(command: string): boolean {
   return [
@@ -99,17 +99,45 @@ function splitShell(command: string): string[] | undefined {
   return parts.filter(Boolean);
 }
 
-export function isReadOnlyCommand(command: string): boolean {
-  if (MUTATION.test(command)) return false;
-  const parts = splitShell(command);
-  if (!parts?.length) return false;
+export type ShellCommandClassification = "safe" | "unknown" | "mutating-or-ambiguous";
 
-  return parts.every((part) => {
+export function findMutationEvidence(command: string): string | undefined {
+  return command.match(MUTATION)?.[0];
+}
+
+export function classifyShellCommand(command: string): ShellCommandClassification {
+  if (findMutationEvidence(command)) return "mutating-or-ambiguous";
+  const parts = splitShell(command);
+  if (!parts?.length) return "mutating-or-ambiguous";
+
+  let hasUnknownPart = false;
+  for (const part of parts) {
     const normalized = part
       .replace(/^for\s+\w+\s+in\s+.+?\s+do\s+/i, "")
       .replace(/^do\s+/i, "")
       .replace(/\s*done\s*$/i, "")
       .trim();
-    return !normalized || /^for\s+\w+\s+in\s+.+$/i.test(normalized) || isSafeSimpleCommand(normalized);
-  });
+    if (!normalized || /^for\s+\w+\s+in\s+.+$/i.test(normalized)) continue;
+    if (!isSafeSimpleCommand(normalized)) hasUnknownPart = true;
+  }
+  return hasUnknownPart ? "unknown" : "safe";
+}
+
+export type ShellCommandAction = "allow" | "confirm" | "block";
+
+export function decideShellCommand(command: string, hasUI: boolean): {
+  classification: ShellCommandClassification;
+  action: ShellCommandAction;
+} {
+  const classification = classifyShellCommand(command);
+  const action = classification === "safe"
+    ? "allow"
+    : classification === "unknown" && hasUI
+      ? "confirm"
+      : "block";
+  return { classification, action };
+}
+
+export function isReadOnlyCommand(command: string): boolean {
+  return classifyShellCommand(command) === "safe";
 }
