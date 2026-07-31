@@ -5,6 +5,7 @@ import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { formatJob, startManagedJob } from "../managed-background-jobs/runtime.ts";
 
 const TOOL_NAME = "run_dynamic_workflow";
 const MAX_TAIL = 20_000;
@@ -62,6 +63,7 @@ const schema = Type.Object({
   retries: Type.Optional(Type.Number({ description: "Passed as --retries <n>." })),
   force: Type.Optional(Type.Boolean({ description: "Pass --force to ignore previous artifacts." })),
   noResume: Type.Optional(Type.Boolean({ description: "Pass --no-resume to rerun this invocation without reusing done units." })),
+  runInBackground: Type.Optional(Type.Boolean({ description: "Run as a managed background job and return control to the chat immediately. Defaults to false for compatibility." })),
 });
 
 export default function (pi: ExtensionAPI) {
@@ -73,6 +75,7 @@ export default function (pi: ExtensionAPI) {
     promptGuidelines: [
       "Use run_dynamic_workflow instead of bash `node ...` when running our dynamic workflow scripts from `.pi/workflows/*.mjs` or `~/.pi/agent/workflows/saved/*.mjs`.",
       "For run_dynamic_workflow, pass workflow unit paths/items in `args`; use `concurrency`, `retries`, `force`, and `noResume` instead of manually spelling those flags.",
+      "Set runInBackground=true when a dynamic workflow can continue independently and the user should remain able to chat; inspect it later with background_jobs. Keep runInBackground=false when this turn must return the workflow's final artifact.",
       "Do not use run_dynamic_workflow for arbitrary shell commands; it only runs Node workflow scripts and streams manifest progress.",
     ],
     parameters: schema,
@@ -82,6 +85,29 @@ export default function (pi: ExtensionAPI) {
       const script = resolveWorkflowScript(cwd, params.script);
       const invocationId = `${process.pid}-${started}-${Math.random().toString(36).slice(2)}`;
       const args = buildNodeArgs(script, params, cwd);
+
+      if (params.runInBackground === true) {
+        const job = await startManagedJob({
+          title: `workflow: ${path.basename(script)}`,
+          launch: { kind: "exec", executable: process.execPath, args },
+          cwd,
+          sessionId: ctx.sessionManager.getSessionId(),
+          environment: { PI_DYNAMIC_WORKFLOW_RUN_ID: invocationId },
+          kind: "dynamic-workflow",
+        });
+        return {
+          content: [{ type: "text", text: `Started dynamic workflow in the background.\n${formatJob(job)}\n  invocation: ${invocationId}` }],
+          details: {
+            jobId: job.spec.id,
+            status: job.state.status,
+            outputPath: job.outputPath,
+            invocationId,
+            script,
+            cwd,
+          },
+        };
+      }
+
       let stdout = "";
       let stderr = "";
       let child: ReturnType<typeof spawn> | undefined;
@@ -130,8 +156,8 @@ export default function (pi: ExtensionAPI) {
       };
 
       const timer = setInterval(() => emit(), UPDATE_MS);
-      child.stdout.on("data", (chunk) => { stdout = tail(stdout + String(chunk)); emit(); });
-      child.stderr.on("data", (chunk) => { stderr = tail(stderr + String(chunk)); emit(); });
+      child.stdout!.on("data", (chunk) => { stdout = tail(stdout + String(chunk)); emit(); });
+      child.stderr!.on("data", (chunk) => { stderr = tail(stderr + String(chunk)); emit(); });
 
       const completion = new Promise<{ code: number | null; sig: NodeJS.Signals | null }>((resolve) => {
         (child as any).on("error", (error: unknown) => {
@@ -162,7 +188,8 @@ export default function (pi: ExtensionAPI) {
     },
     renderCall(args, theme) {
       const script = typeof args?.script === "string" ? shorten(path.basename(args.script), 80) : "workflow";
-      return new Text(`${theme.fg("toolTitle", theme.bold("dynamic workflow"))} ${theme.fg("muted", script)}`, 0, 0);
+      const mode = args?.runInBackground === true ? theme.fg("dim", " (background)") : "";
+      return new Text(`${theme.fg("toolTitle", theme.bold("dynamic workflow"))} ${theme.fg("muted", script)}${mode}`, 0, 0);
     },
     renderResult(result, { isPartial }, theme) {
       const text = result.content?.[0]?.type === "text" ? result.content[0].text : "";

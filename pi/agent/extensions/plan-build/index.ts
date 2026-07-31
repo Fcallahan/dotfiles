@@ -18,6 +18,7 @@ const READ_ONLY_TOOLS = new Set([
   "find",
   "ls",
   "bash",
+  "background_jobs",
   "questionnaire",
 ]);
 
@@ -117,6 +118,15 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
         block: true,
         reason: `Plan mode blocks the ${event.toolName} tool. Run /build to enable mutations.`,
       };
+    }
+    if (event.toolName === "background_jobs") {
+      const action = String(event.input.action ?? "");
+      if (!["list", "status", "logs"].includes(action)) {
+        return {
+          block: true,
+          reason: `Plan mode blocks background job action=${action}. Run /build before stopping or restarting jobs.`,
+        };
+      }
     }
     if (event.toolName === "bash") {
       const command = String(event.input.command ?? "");

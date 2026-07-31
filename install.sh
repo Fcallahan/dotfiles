@@ -73,6 +73,7 @@ LINKS=(
     "pi/agent/extensions/plan-build:$HOME/.pi/agent/extensions/plan-build"
     "pi/agent/extensions/command-palette:$HOME/.pi/agent/extensions/command-palette"
     "pi/agent/extensions/dynamic-workflow-ux:$HOME/.pi/agent/extensions/dynamic-workflow-ux"
+    "pi/agent/extensions/managed-background-jobs:$HOME/.pi/agent/extensions/managed-background-jobs"
     "pi/agent/extensions/question:$HOME/.pi/agent/extensions/question"
     "pi/agent/extensions/progress:$HOME/.pi/agent/extensions/progress"
     "pi/agent/extensions/nvim-review:$HOME/.pi/agent/extensions/nvim-review"

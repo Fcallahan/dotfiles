@@ -46,10 +46,13 @@ Give an AI agent this exact prompt:
   - `plan-build`
   - `command-palette`
   - `dynamic-workflow-ux`
+  - `managed-background-jobs`
   - `question`
   - `nvim-review`
   - `openrouter-deepseek-only.ts`
 - External files-widget repo cloned to `~/pi-extensions` and referenced as `~/pi-extensions/files-widget`
+
+Managed background-job state lives under `~/.pi/agent/background-jobs/`. Each job keeps a state file and size-rotated output logs; terminal jobs older than 14 days are removed at session start. Use `/jobs` for a quick list or the `background_jobs` tool for status, logs, graceful stop, restart, and cleanup.
 
 ## Verification
 
@@ -61,6 +64,7 @@ test -L ~/.pi/agent/APPEND_SYSTEM.md
 test -L ~/.pi/agent/models.json
 test -L ~/.pi/agent/extensions/question
 test -L ~/.pi/agent/extensions/dynamic-workflow-ux
+test -L ~/.pi/agent/extensions/managed-background-jobs
 test -L ~/.pi/agent/extensions/nvim-review
 test -L ~/.pi/agent/extensions/openrouter-deepseek-only.ts
 jq empty ~/.pi/agent/settings.json ~/.pi/agent/keybindings.json ~/.pi/agent/models.json
@@ -73,7 +77,9 @@ Then start Pi and verify:
 - The appended system prompt is loaded.
 - `Ctrl+P` opens the command palette.
 - The `question` tool is available.
-- Workflow and dynamic workflow tools are available.
+- Workflow, dynamic workflow, `managed_bash`, and `background_jobs` tools are available.
+- A long `managed_bash` call with `run_in_background=true` returns immediately and remains visible through `/jobs`.
+- During a foreground `managed_bash` call, `Ctrl+B` backgrounds the job; when no managed foreground job is running, `Ctrl+B` still moves the editor cursor left.
 - Keybindings include `Ctrl+Shift+Alt+P` for session path toggle and `Ctrl+Shift+P` for provider toggle.
 - Provider/model show `openai-codex` / `gpt-5.6-sol`.
 - OpenRouter models shown by Pi all have IDs beginning with `deepseek/`; no OpenRouter GPT model is selectable.
