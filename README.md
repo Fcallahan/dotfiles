@@ -16,6 +16,7 @@ chmod +x install.sh
 The installer creates symlinks, backs up replaced files, and installs script entrypoints to `~/.local/bin`.
 
 For Pi setup, see `docs/pi-setup.md` after running the installer.
+For Claude Code through a ChatGPT subscription, see `docs/claude-code-proxy.md`.
 
 ## What is managed
 
@@ -66,6 +67,7 @@ See `docs/pi-setup.md` for install/auth/reload and verification details. Do not 
 - `scripts/rider`
 - `scripts/clone-wt`
 - `scripts/tmuxwindownizer`
+- `scripts/install-claude-code-proxy` — verifies and installs the current Linux proxy release without storing credentials.
 
 ### Dictation cleanup
 - `dictation/cleanup-dictation` — WSL cleanup script for Windows Voice Typing text.

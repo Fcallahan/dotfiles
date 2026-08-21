@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly REPOSITORY="raine/claude-code-proxy"
+readonly MINIMUM_VERSION="0.1.17"
+readonly INSTALL_DIR="${HOME}/.local/bin"
+readonly INSTALL_PATH="${INSTALL_DIR}/claude-code-proxy"
+
+fail() {
+    printf 'Error: %s\n' "$*" >&2
+    exit 1
+}
+
+for command in curl file install jq sha256sum sort tar; do
+    command -v "$command" >/dev/null 2>&1 || fail "Required command not found: $command"
+done
+
+case "$(uname -s)" in
+    Linux) ;;
+    *) fail "Only Linux is supported by this installer" ;;
+esac
+
+case "$(uname -m)" in
+    x86_64) release_arch="amd64" ;;
+    aarch64|arm64) release_arch="arm64" ;;
+    *) fail "Unsupported architecture: $(uname -m)" ;;
+esac
+
+release_json="$(curl -fsSL --proto '=https' --tlsv1.2 \
+    "https://api.github.com/repos/${REPOSITORY}/releases/latest")"
+release_tag="$(jq -er '.tag_name' <<<"$release_json")"
+version="${release_tag#v}"
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Unexpected release version: ${release_tag}"
+
+if [ "$(printf '%s\n%s\n' "$MINIMUM_VERSION" "$version" | sort -V | head -n1)" != "$MINIMUM_VERSION" ]; then
+    fail "Latest release ${version} is older than required version ${MINIMUM_VERSION}"
+fi
+
+artifact="claude-code-proxy-linux-${release_arch}.tar.gz"
+checksum="${artifact%.tar.gz}.sha256"
+base_url="https://github.com/${REPOSITORY}/releases/download/${release_tag}"
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+
+printf 'Downloading claude-code-proxy %s for Linux %s...\n' "$version" "$release_arch"
+curl -fL --proto '=https' --tlsv1.2 "${base_url}/${artifact}" -o "${tmp_dir}/${artifact}"
+curl -fL --proto '=https' --tlsv1.2 "${base_url}/${checksum}" -o "${tmp_dir}/${checksum}"
+
+(
+    cd "$tmp_dir"
+    sha256sum -c "$checksum"
+)
+
+tar -xzf "${tmp_dir}/${artifact}" -C "$tmp_dir"
+file_output="$(file "${tmp_dir}/claude-code-proxy")"
+[[ "$file_output" == *"ELF"* ]] || fail "Downloaded executable is not an ELF binary: ${file_output}"
+
+install -d "$INSTALL_DIR"
+install -m 0755 "${tmp_dir}/claude-code-proxy" "$INSTALL_PATH"
+
+"$INSTALL_PATH" --version
+printf '\nInstalled: %s\n' "$INSTALL_PATH"
+printf 'Next: follow %s/docs/claude-code-proxy.md to authenticate and start the proxy.\n' \
+    "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
