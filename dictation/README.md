@@ -21,6 +21,21 @@ It is designed for Windows Voice Typing + WSL. It does not record audio in WSL a
 7. Press `Ctrl+Enter` or click `Clean + Paste`.
 8. The cleaned text is pasted into the app that was focused before the popup opened.
 
+### Optional one-off instructions
+
+To control one result without changing the selected cleanup mode, begin the dictation with `Instructions:`, then separate the actual text with `Message:`.
+
+```text
+Instructions:
+- Format the result as bullet points.
+- Replace every occurrence of John with Jon.
+
+Message:
+John reviewed the first option and approved it the second option still needs work.
+```
+
+The result contains only the cleaned message. The `Instructions:` and `Message:` labels and the instruction text are removed. If both labeled sections are not present, the whole input is treated as the message as before.
+
 ## Windows setup without AutoHotkey
 
 Use the PowerShell popup script:
@@ -94,19 +109,19 @@ Make sure it is executable:
 chmod +x ~/dotfiles/dictation/cleanup-dictation
 ```
 
-Make sure `pi` is installed and authenticated in WSL:
+With the default `openrouter` provider, the script calls OpenRouter directly with `curl` and `jq`, skipping `pi`. It turns reasoning off and asks OpenRouter to try fast hosts first. OpenRouter's default host is the cheapest, not the fastest, and with reasoning on a cleanup took 30–300 seconds instead of about 3. Other providers still go through `pi`, so for those make sure `pi` is installed and authenticated in WSL.
 
-```bash
-command -v pi
-pi --help
-```
-
-Default provider and model:
+Defaults:
 
 ```bash
 DICTATION_CLEANUP_PROVIDER=openrouter
-DICTATION_CLEANUP_MODEL=qwen/qwen3.5-9b
+DICTATION_CLEANUP_MODEL=deepseek/deepseek-v4-flash
+DICTATION_CLEANUP_THINKING=off
+DICTATION_CLEANUP_PROVIDER_ORDER=novita,siliconflow,deepinfra
+DICTATION_CLEANUP_TIMEOUT_SECONDS=60
 ```
+
+`DICTATION_CLEANUP_PROVIDER_ORDER` lists OpenRouter hosts to try first. Other hosts remain available as fallbacks. Hosts that your OpenRouter zero-data-retention setting rules out are skipped automatically.
 
 Configure an OpenRouter API key outside this repo. Either export it from your private shell config:
 

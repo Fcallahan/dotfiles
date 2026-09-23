@@ -1,26 +1,42 @@
 {
-  "lastChangelogVersion": "0.80.7",
+  "lastChangelogVersion": "0.85.1",
   "defaultProvider": "openrouter",
-  "defaultModel": "openrouter/deepseek/deepseek-v4-flash",
-  "defaultThinkingLevel": "low",
+  "defaultModel": "deepseek/deepseek-v4-flash",
+  "defaultThinkingLevel": "high",
   "enabledModels": [
-    "openai-codex/gpt-5.3-codex-spark",
-    "openai-codex/gpt-5.4",
-    "openai-codex/gpt-5.4-mini",
-    "openai-codex/gpt-5.5",
-    "openai-codex/gpt-5.6-luna",
-    "openai-codex/gpt-5.6-terra",
-    "openrouter/deepseek/*"
+    "openai-codex/gpt-*",
+    "openrouter/deepseek/deepseek-v4-flash",
+    "claude-cli/fable-5.1",
+    "anthropic/claude-opus-5-5",
+    "anthropic/claude-sonnet-5"
   ],
   "editorPaddingX": 2,
   "packages": [
     "npm:pi-subagents",
     "npm:pi-zentui",
-    "npm:pi-tool-display"
+    "npm:pi-tool-display",
+    "npm:@plannotator/pi-extension",
+    "git:https://github.com/code-yeongyu/pi-lsp-client@1c981dfcacc456fe4ce9f4120a2f0250b54d6844"
   ],
   "extensions": [
-    "~/pi-extensions/files-widget"
+    "~/pi-extensions/files-widget",
+    "~/pi_nvim_review_comments/index.ts",
+    "~/pi-extensions/usage-extension",
+    "~/dotfiles/pi/agent/extensions/claude-cli-provider"
   ],
-  "hideThinkingBlock": true,
-  "theme": "opencode"
+  "hideThinkingBlock": false,
+  "theme": "opencode",
+  "subagents": {
+    "agentOverridesByProvider": {
+      "anthropic": {
+        "scout": { "model": "inherit" },
+        "researcher": { "model": "inherit" },
+        "evidence-auditor": { "model": "inherit" },
+        "worker": { "model": "inherit" },
+        "reviewer": { "model": "inherit" },
+        "oracle": { "model": "inherit" },
+        "delegate": { "model": "inherit" }
+      }
+    }
+  }
 }
