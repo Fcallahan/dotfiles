@@ -38,6 +38,7 @@ fi
 # Plugins to load
 plugins=(
     git
+    fzf-tab  # must load before autosuggestions/syntax-highlighting
     zsh-autosuggestions
     zsh-syntax-highlighting
     dotnet
@@ -617,7 +618,7 @@ fi
 
 # ===== COMPLETION ENHANCEMENTS =====
 # Better completion
-zstyle ':completion:*' menu select
+zstyle ':completion:*:*:*:*:*' menu no  # fzf-tab replaces the menu (overrides oh-my-zsh)
 zstyle ':completion:*' group-name ''
 zstyle ':completion:*:descriptions' format '%B%d%b'
 zstyle ':completion:*:warnings' format 'No matches for: %d'
@@ -835,6 +836,25 @@ eval "$(starship init zsh)"
 export BROWSER="$HOME/.local/bin/browser-launcher.sh"
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+# fzf-tab: preview directories while completing cd/z
+zstyle ':fzf-tab:complete:(cd|z|__zoxide_z):*' fzf-preview 'ls -1 --color=always $realpath'
+
+# Ctrl+F: fuzzy-find any directory under the current one.
+# Empty prompt -> cd into it. Otherwise -> insert the path at the cursor.
+fzf-dir-widget() {
+    local dir
+    dir=$(fd --type d --hidden --follow --exclude .git --exclude node_modules --exclude bin --exclude obj . 2>/dev/null |
+        fzf --height=40% --reverse --prompt='dir> ' --preview 'ls -1 --color=always {}') || { zle reset-prompt; return }
+    if [[ -z $BUFFER ]]; then
+        builtin cd -- "$dir" && zle reset-prompt
+    else
+        LBUFFER+="${(q)dir}"
+        zle reset-prompt
+    fi
+}
+zle -N fzf-dir-widget
+bindkey '^F' fzf-dir-widget
 
 # lazydocker alias
 alias lzd='lazydocker'

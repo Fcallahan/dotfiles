@@ -162,6 +162,11 @@ if [ ! -d "$HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting" ]; then
     echo "  Install: git clone https://github.com/zsh-users/zsh-syntax-highlighting.git \${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting"
 fi
 
+if [ ! -d "$HOME/.oh-my-zsh/custom/plugins/fzf-tab" ]; then
+    print_warning "fzf-tab not installed"
+    echo "  Install: git clone https://github.com/Aloxaf/fzf-tab \${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/fzf-tab"
+fi
+
 if [ ! -d "$HOME/.oh-my-zsh/custom/themes/powerlevel10k" ]; then
     print_warning "powerlevel10k theme not installed"
     echo "  Install: git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
