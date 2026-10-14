@@ -1,0 +1,51 @@
+--- a/src/runs/background/notify.js
++++ b/src/runs/background/notify.js
+@@ -496,8 +496,7 @@
+         || result.results?.some((child) => child.stopped === true
+             || child.status === "stopped"
+             || (child.success !== true && child.exitCode !== 0 && isUnexplainedProcessSignal(child))) === true;
+-    const paused = !stopped && !result.success && (result.exitCode === 0
+-        || result.state === "paused"
++    const paused = !stopped && !result.success && (result.state === "paused"
+         || result.interrupted === true
+         || summary.startsWith("Paused after interrupt."));
+     const status = stopped ? "stopped" : paused ? "paused" : result.success ? "completed" : "failed";
+--- a/src/runs/background/run-status.js
++++ b/src/runs/background/run-status.js
+@@ -793,7 +793,7 @@
+                 : [];
+             const status = data.state === "stopped" || data.stopped === true || childStatuses.includes("stopped")
+                 ? "stopped"
+-                : data.success ? "complete" : data.state === "paused" || data.exitCode === 0 ? "paused" : "failed";
++                : data.success ? "complete" : data.state === "paused" ? "paused" : "failed";
+             const runId = data.runId ?? data.id ?? resolvedId;
+             const lines = [`Run: ${runId}`, data.toolCallId ? `Tool call: ${data.toolCallId}` : undefined, `State: ${status}`, `Result: ${resultPath}`].filter((line) => Boolean(line));
+             if (data.parallelHandoff?.path)
+--- a/src/runs/background/stale-run-reconciler.js
++++ b/src/runs/background/stale-run-reconciler.js
+@@ -73,7 +73,7 @@
+         const data = JSON.parse(fs.readFileSync(resultPath, "utf-8"));
+         if (data.error !== undefined && typeof data.error !== "string")
+             throw new Error(`Invalid async result file '${resultPath}': error must be a string.`);
+-        const state = data.success ? "complete" : data.state === "stopped" ? "stopped" : data.state === "rejected" ? "rejected" : data.state === "partial" ? "partial" : data.state === "paused" || data.exitCode === 0 ? "paused" : "failed";
++        const state = data.success ? "complete" : data.state === "stopped" ? "stopped" : data.state === "rejected" ? "rejected" : data.state === "partial" ? "partial" : data.state === "paused" ? "paused" : "failed";
+         const results = Array.isArray(data.results)
+             ? data.results.map((entry, index) => {
+                 if (!entry || typeof entry !== "object" || Array.isArray(entry))
+@@ -392,6 +392,16 @@
+         return { status: null, repaired: false, resultPath };
+     }
+     if (effectiveStatus.state !== "running" || typeof effectiveStatus.pid !== "number") {
++        // Local repair: a paused run whose runner died never resumes, so mark it failed.
++        // A PID recorded in another namespace cannot be judged dead from here.
++        if (effectiveStatus.state === "paused" && typeof effectiveStatus.pid === "number") {
++            const pausedObservedScope = options.pidNamespaceScope ? options.pidNamespaceScope() : currentPidNamespaceScope();
++            const pausedScopeMismatch = effectiveStatus.pidNamespaceScope !== undefined && effectiveStatus.pidNamespaceScope !== pausedObservedScope;
++            const pausedScopeVerified = effectiveStatus.pidNamespaceScope !== undefined && effectiveStatus.pidNamespaceScope === pausedObservedScope;
++            if (!pausedScopeMismatch && checkPidLiveness(effectiveStatus.pid, options.kill, pausedScopeVerified) === "dead") {
++                return writeFailedRepair(asyncDir, effectiveStatus, resultPath, now, `Async runner process ${effectiveStatus.pid} is dead but run was left in "paused" state.`);
++            }
++        }
+         return { status: status ?? null, repaired: false, resultPath };
+     }
+     if (!status) {

@@ -9,20 +9,23 @@ usage() {
 Usage: cleanup-dictation [--mode light|polish] [--help]
 
 Read dictated text from stdin, apply work-specific replacements, clean it with
-DeepSeek (via OpenRouter), and print the final text to stdout.
+Claude Haiku 5.5 (Anthropic API), and print the final text to stdout.
 
 Modes:
   light   Preserve wording; fix punctuation, capitalization, grammar, and STT mistakes.
   polish  Rewrite into clear, natural, professional US English.
 
 Environment:
-  DICTATION_CLEANUP_PROVIDER          Default: openrouter (called directly; other providers go through pi)
-  DICTATION_CLEANUP_MODEL             Default: deepseek/deepseek-v4-flash
-  DICTATION_CLEANUP_THINKING          Default: off
+  DICTATION_CLEANUP_PROVIDER          Default: anthropic (anthropic and openrouter are called directly;
+                                      other providers go through pi)
+  DICTATION_CLEANUP_MODEL             Default: claude-haiku-5-5
+  DICTATION_CLEANUP_THINKING          Default: off (anthropic: or low|medium|high effort with adaptive thinking)
+  DICTATION_CLEANUP_ANTHROPIC_API_KEY Default: .apiKey in ~/.config/anthropic/credentials/default.json,
+                                      then $ANTHROPIC_API_KEY
   DICTATION_CLEANUP_PROVIDER_ORDER    Default: novita,siliconflow,deepinfra (OpenRouter hosts to try first)
   DICTATION_CLEANUP_PI_BIN            Default: pi
   DICTATION_CLEANUP_TIMEOUT_SECONDS   Default: 60
-  OPENROUTER_API_KEY                  Default: read from ~/.pi/agent/auth.json
+  OPENROUTER_API_KEY                  Default: read from ~/.pi/agent/auth.json (openrouter provider only)
   DICTATION_CLEANUP_REPLACEMENTS      Default: <repo>/dictation/replacements.tsv
   DICTATION_CLEANUP_VOCABULARY        Default: <repo>/dictation/vocabulary.txt
   DICTATION_CLEANUP_SKIP_LLM          Set to 1/true/yes for deterministic replacement only.
@@ -69,8 +72,12 @@ fi
 REPLACEMENTS_FILE="${DICTATION_CLEANUP_REPLACEMENTS:-$SCRIPT_DIR/replacements.tsv}"
 VOCABULARY_FILE="${DICTATION_CLEANUP_VOCABULARY:-$SCRIPT_DIR/vocabulary.txt}"
 PI_BIN="${DICTATION_CLEANUP_PI_BIN:-pi}"
-PROVIDER="${DICTATION_CLEANUP_PROVIDER:-openrouter}"
-MODEL="${DICTATION_CLEANUP_MODEL:-deepseek/deepseek-v4-flash}"
+PROVIDER="${DICTATION_CLEANUP_PROVIDER:-anthropic}"
+if [[ "$PROVIDER" == "anthropic" ]]; then
+    MODEL="${DICTATION_CLEANUP_MODEL:-claude-haiku-5-5}"
+else
+    MODEL="${DICTATION_CLEANUP_MODEL:-deepseek/deepseek-v4-flash}"
+fi
 THINKING="${DICTATION_CLEANUP_THINKING:-off}"
 TIMEOUT_SECONDS="${DICTATION_CLEANUP_TIMEOUT_SECONDS:-60}"
 PROVIDER_ORDER="${DICTATION_CLEANUP_PROVIDER_ORDER:-novita,siliconflow,deepinfra}"
@@ -229,6 +236,64 @@ cleanup_with_openrouter() {
     printf '%s' "$content"
 }
 
+# Call the Anthropic Messages API directly: one short request, no pi startup cost.
+# The key file comes first so the Windows popup (bash -lc, no ~/.zshrc.local) and
+# an interactive shell use the same key.
+cleanup_with_anthropic() {
+    local key="${DICTATION_CLEANUP_ANTHROPIC_API_KEY:-}"
+    if [[ -z "$key" ]]; then
+        key="$(jq -r '.apiKey // empty' "$HOME/.config/anthropic/credentials/default.json" 2>/dev/null || true)"
+    fi
+    if [[ -z "$key" ]]; then
+        key="${ANTHROPIC_API_KEY:-}"
+    fi
+    if [[ -z "$key" ]]; then
+        printf 'cleanup-dictation: No Anthropic key. Run ~/set-key.sh or set ANTHROPIC_API_KEY.\n' >&2
+        return 1
+    fi
+
+    # Haiku 5.5 accepts disabled thinking at its default (medium) effort; keep it off for speed.
+    local thinking='{"type":"disabled"}' output_config='null'
+    if [[ "$THINKING" != "off" ]]; then
+        thinking='{"type":"adaptive"}'
+        output_config="$(jq -cn --arg e "$THINKING" '{effort:$e}')"
+    fi
+
+    local response
+    response="$(printf '%s' "$PROMPT" | jq -Rs \
+        --arg model "$MODEL" \
+        --argjson thinking "$thinking" \
+        --argjson output_config "$output_config" \
+        '{model:$model, max_tokens:16000, thinking:$thinking, messages:[{role:"user", content:.}]}
+          + (if $output_config == null then {} else {output_config:$output_config} end)' \
+        | curl -sS --max-time "$TIMEOUT_SECONDS" https://api.anthropic.com/v1/messages \
+            -H @<(printf 'x-api-key: %s\n' "$key") \
+            -H 'anthropic-version: 2023-06-01' \
+            -H 'content-type: application/json' \
+            --data-binary @-)" || {
+        printf 'cleanup-dictation: Anthropic request failed or timed out after %ss.\n' "$TIMEOUT_SECONDS" >&2
+        return 1
+    }
+
+    local stop_reason content
+    stop_reason="$(jq -r '.stop_reason // empty' <<<"$response" 2>/dev/null || true)"
+    if [[ "$stop_reason" == "refusal" ]]; then
+        printf 'cleanup-dictation: Claude declined this request (%s).\n' \
+            "$(jq -r '.stop_details.category // "no category"' <<<"$response" 2>/dev/null)" >&2
+        return 1
+    fi
+    content="$(jq -r '[.content[]? | select(.type == "text") | .text] | join("")' <<<"$response" 2>/dev/null || true)"
+    if [[ -z "$content" ]]; then
+        printf 'cleanup-dictation: Anthropic error: %s\n' \
+            "$(jq -r '.error.message // "unexpected response"' <<<"$response" 2>/dev/null || printf 'unreadable response')" >&2
+        return 1
+    fi
+    if [[ "$stop_reason" == "max_tokens" ]]; then
+        printf 'cleanup-dictation: warning: output hit max_tokens and may be cut off.\n' >&2
+    fi
+    printf '%s' "$content"
+}
+
 cleanup_with_pi() {
     if ! command -v "$PI_BIN" >/dev/null 2>&1; then
         printf 'cleanup-dictation: pi not found. Install/configure pi or set DICTATION_CLEANUP_PI_BIN.\n' >&2
@@ -244,7 +309,9 @@ cleanup_with_pi() {
 }
 
 set +e
-if [[ "$PROVIDER" == "openrouter" ]]; then
+if [[ "$PROVIDER" == "anthropic" ]]; then
+    OUTPUT="$(cleanup_with_anthropic)"
+elif [[ "$PROVIDER" == "openrouter" ]]; then
     OUTPUT="$(cleanup_with_openrouter)"
 else
     OUTPUT="$(cleanup_with_pi)"

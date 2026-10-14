@@ -4,11 +4,12 @@
   "defaultModel": "claude-opus-5-5",
   "defaultThinkingLevel": "high",
   "enabledModels": [
-    "openai-codex/gpt-*",
-    "openrouter/deepseek/deepseek-v4-flash",
-    "claude-cli/fable-5.1",
+    "anthropic/claude-haiku-5-5",
     "anthropic/claude-opus-5-5",
-    "anthropic/claude-sonnet-5-5"
+    "anthropic/claude-sonnet-5-5",
+    "claude-cli/fable-5.1",
+    "openai-codex/gpt-*",
+    "openrouter/deepseek/deepseek-v4-flash"
   ],
   "editorPaddingX": 2,
   "terminal": {

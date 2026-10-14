@@ -6,8 +6,8 @@ param(
     [string]$WslDistro = "",
     [string]$WslScript = "",
     [string]$DefaultMode = "polish",
-    [string]$Provider = "openrouter",
-    [string]$Model = "deepseek/deepseek-v4-flash"
+    [string]$Provider = "anthropic",
+    [string]$Model = "claude-haiku-5-5"
 )
 
 Set-StrictMode -Version Latest

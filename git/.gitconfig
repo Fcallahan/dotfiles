@@ -19,6 +19,10 @@
 [credential "https://github.com"]
 	helper = 
 	helper = !/usr/bin/gh auth git-credential
+[credential "https://github.com/Fcallahan"]
+	# personal repos always use the Fcallahan token, whichever gh account is active
+	helper = 
+	helper = "!f() { test \"$1\" = get && echo username=Fcallahan && echo \"password=$(gh auth token -u Fcallahan)\"; }; f"
 [credential "https://gist.github.com"]
 	helper = 
 	helper = !/usr/bin/gh auth git-credential
