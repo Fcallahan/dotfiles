@@ -1,15 +1,15 @@
 {
-  "lastChangelogVersion": "1.0.4",
-  "defaultProvider": "anthropic",
-  "defaultModel": "claude-opus-5-5",
+  "lastChangelogVersion": "1.2.0",
+  "defaultProvider": "openai",
+  "defaultModel": "gpt-5.6-sol",
   "defaultThinkingLevel": "high",
   "enabledModels": [
     "anthropic/claude-haiku-5-5",
     "anthropic/claude-opus-5-5",
     "anthropic/claude-sonnet-5-5",
     "claude-cli/fable-5.1",
-    "openai-codex/gpt-*",
-    "openrouter/deepseek/deepseek-v4-flash"
+    "openai/gpt-*",
+    "claude-emsmc/*"
   ],
   "editorPaddingX": 2,
   "terminal": {
@@ -28,7 +28,8 @@
     "~/pi-extensions/usage-extension",
     "~/dotfiles/pi/agent/extensions/claude-cli-provider",
     "~/dotfiles/pi/agent/extensions/opus-anthropic-routing",
-    "~/dotfiles/pi/agent/extensions/plannotator-wsl-ports.ts"
+    "~/dotfiles/pi/agent/extensions/plannotator-wsl-ports.ts",
+    "~/dotfiles/pi/agent/extensions/claude-emsmc-provider"
   ],
   "hideThinkingBlock": false,
   "theme": "opencode",
@@ -94,5 +95,6 @@
     }
   },
   "steeringMode": "all",
-  "showCacheMissNotices": true
+  "showCacheMissNotices": true,
+  "deviceId": "986f5fd2-b3c4-477e-a223-c3d0281c6271"
 }
