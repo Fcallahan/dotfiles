@@ -1,0 +1,59 @@
+diff --git a/src/runs/background/notify.ts b/src/runs/background/notify.ts
+index fd1f924..7ab1c9b 100644
+--- a/src/runs/background/notify.ts
++++ b/src/runs/background/notify.ts
+@@ -124,8 +124,7 @@ export function buildCompletionDetails(result: SubagentResult): SubagentNotifyDe
+ 	const agent = result.agent ?? "unknown";
+ 	const summary = typeof result.summary === "string" ? result.summary : "";
+ 	const paused = !result.success && (
+-		result.exitCode === 0
+-		|| result.state === "paused"
++		result.state === "paused"
+ 		|| summary.startsWith("Paused after interrupt.")
+ 	);
+ 	const status = paused ? "paused" : result.success ? "completed" : "failed";
+diff --git a/src/runs/background/run-status.ts b/src/runs/background/run-status.ts
+index de255e0..d966ca5 100644
+--- a/src/runs/background/run-status.ts
++++ b/src/runs/background/run-status.ts
+@@ -409,7 +409,7 @@ export function inspectSubagentStatus(params: RunStatusParams, deps: RunStatusDe
+ 					return { content: [{ type: "text", text: message }], isError: true, details: { mode: "single", results: [] } };
+ 				}
+ 			}
+-			const status = data.success ? "complete" : data.state === "paused" || data.exitCode === 0 ? "paused" : "failed";
++			const status = data.success ? "complete" : data.state === "paused" ? "paused" : "failed";
+ 			const runId = data.runId ?? data.id ?? resolvedId;
+ 			const lines = [`Run: ${runId}`, `State: ${status}`, `Result: ${resultPath}`];
+ 			const children = Array.isArray(data.results) ? data.results : data.agent ? [{ agent: data.agent, sessionFile: data.sessionFile }] : [];
+diff --git a/src/runs/background/stale-run-reconciler.ts b/src/runs/background/stale-run-reconciler.ts
+index 5be1805..23d7eed 100644
+--- a/src/runs/background/stale-run-reconciler.ts
++++ b/src/runs/background/stale-run-reconciler.ts
+@@ -121,7 +121,7 @@ interface ResultRepairData {
+ function readResultRepairData(resultPath: string): ResultRepairData | undefined {
+ 	try {
+ 		const data = JSON.parse(fs.readFileSync(resultPath, "utf-8")) as { success?: boolean; state?: string; exitCode?: number; results?: ResultChildOutcome[] };
+-		const state = data.success ? "complete" : data.state === "paused" || data.exitCode === 0 ? "paused" : "failed";
++		const state = data.success ? "complete" : data.state === "paused" ? "paused" : "failed";
+ 		return { state, ...(Array.isArray(data.results) ? { results: data.results } : {}) };
+ 	} catch (error) {
+ 		if (isNotFoundError(error)) return undefined;
+@@ -345,6 +345,18 @@ export function reconcileAsyncRun(asyncDir: string, options: ReconcileAsyncRunOp
+ 	}
+ 
+ 	if (effectiveStatus.state !== "running" || typeof effectiveStatus.pid !== "number") {
++		if (effectiveStatus.state === "paused" && typeof effectiveStatus.pid === "number") {
++			const liveness = checkPidLiveness(effectiveStatus.pid, options.kill);
++			if (liveness === "dead") {
++				return writeFailedRepair(
++					asyncDir,
++					effectiveStatus,
++					resultPath,
++					now,
++					`Async runner process ${effectiveStatus.pid} is dead but run was left in "paused" state.`,
++				);
++			}
++		}
+ 		return { status: status ?? null, repaired: false, resultPath };
+ 	}
+ 

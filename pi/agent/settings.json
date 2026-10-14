@@ -1,16 +1,19 @@
 {
-  "lastChangelogVersion": "0.85.1",
-  "defaultProvider": "openrouter",
-  "defaultModel": "deepseek/deepseek-v4-flash",
+  "lastChangelogVersion": "1.0.4",
+  "defaultProvider": "anthropic",
+  "defaultModel": "claude-opus-5-5",
   "defaultThinkingLevel": "high",
   "enabledModels": [
     "openai-codex/gpt-*",
     "openrouter/deepseek/deepseek-v4-flash",
     "claude-cli/fable-5.1",
     "anthropic/claude-opus-5-5",
-    "anthropic/claude-sonnet-5"
+    "anthropic/claude-sonnet-5-5"
   ],
   "editorPaddingX": 2,
+  "terminal": {
+    "hyperlinks": true
+  },
   "packages": [
     "npm:pi-subagents",
     "npm:pi-zentui",
@@ -22,21 +25,73 @@
     "~/pi-extensions/files-widget",
     "~/pi_nvim_review_comments/index.ts",
     "~/pi-extensions/usage-extension",
-    "~/dotfiles/pi/agent/extensions/claude-cli-provider"
+    "~/dotfiles/pi/agent/extensions/claude-cli-provider",
+    "~/dotfiles/pi/agent/extensions/opus-anthropic-routing",
+    "~/dotfiles/pi/agent/extensions/plannotator-wsl-ports.ts"
   ],
   "hideThinkingBlock": false,
   "theme": "opencode",
   "subagents": {
     "agentOverridesByProvider": {
       "anthropic": {
-        "scout": { "model": "inherit" },
-        "researcher": { "model": "inherit" },
-        "evidence-auditor": { "model": "inherit" },
-        "worker": { "model": "inherit" },
-        "reviewer": { "model": "inherit" },
-        "oracle": { "model": "inherit" },
-        "delegate": { "model": "inherit" }
+        "scout": {
+          "model": "inherit",
+          "tools": [
+            "read",
+            "grep",
+            "find",
+            "ls",
+            "bash",
+            "contact_supervisor"
+          ]
+        },
+        "researcher": {
+          "model": "inherit"
+        },
+        "evidence-auditor": {
+          "model": "inherit"
+        },
+        "worker": {
+          "model": "inherit"
+        },
+        "reviewer": {
+          "model": "inherit"
+        },
+        "oracle": {
+          "model": "inherit"
+        },
+        "delegate": {
+          "model": "inherit"
+        }
+      },
+      "openai-codex": {
+        "scout": {
+          "model": "openai-codex/gpt-6-luna",
+          "thinking": "high"
+        },
+        "researcher": {
+          "model": "openai-codex/gpt-6-luna",
+          "thinking": "high",
+          "tools": [
+            "read",
+            "write",
+            "grep",
+            "find",
+            "ls",
+            "bash"
+          ]
+        },
+        "worker": {
+          "model": "openai-codex/gpt-6.1-sol",
+          "thinking": "high"
+        },
+        "reviewer": {
+          "model": "openai-codex/gpt-6-astra",
+          "thinking": "low"
+        }
       }
     }
-  }
+  },
+  "steeringMode": "all",
+  "showCacheMissNotices": true
 }

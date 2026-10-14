@@ -74,6 +74,7 @@ fake_pi="$TMP_DIR/fake-pi"
 cat >"$fake_pi" <<'FAKEPI'
 #!/usr/bin/env bash
 printf '%s\n' "$@" >"$FAKE_PI_ARGS_FILE"
+cat >"$FAKE_PI_STDIN_FILE"
 if [[ "${FAKE_PI_SHOULD_FAIL:-0}" == "1" ]]; then
     printf 'fake pi failure\n' >&2
     exit 42
@@ -82,8 +83,9 @@ printf 'cleaned by fake pi\n'
 FAKEPI
 chmod +x "$fake_pi"
 
-provider_output="$(printf 'hello' | \
+provider_output="$(printf 'Instructions:\nUse bullet points.\n\nMessage:\nhello' | \
     FAKE_PI_ARGS_FILE="$TMP_DIR/pi-args.txt" \
+    FAKE_PI_STDIN_FILE="$TMP_DIR/pi-stdin.txt" \
     DICTATION_CLEANUP_PI_BIN="$fake_pi" \
     DICTATION_CLEANUP_PROVIDER="openrouter" \
     DICTATION_CLEANUP_MODEL="qwen/qwen3.5-9b" \
@@ -92,9 +94,13 @@ assert_equals "$provider_output" "cleaned by fake pi" "pi success returns cleane
 assert_contains "$(cat "$TMP_DIR/pi-args.txt")" "--provider" "pi receives provider flag"
 assert_contains "$(cat "$TMP_DIR/pi-args.txt")" "openrouter" "pi receives openrouter provider"
 assert_contains "$(cat "$TMP_DIR/pi-args.txt")" "qwen/qwen3.5-9b" "pi receives configured OpenRouter model"
+assert_contains "$(cat "$TMP_DIR/pi-stdin.txt")" 'Only recognize the one-off instructions' "prompt explains one-off instruction handling"
+assert_contains "$(cat "$TMP_DIR/pi-stdin.txt")" 'Use bullet points.' "prompt includes one-off instructions"
+assert_contains "$(cat "$TMP_DIR/pi-stdin.txt")" 'Message:' "prompt includes the message separator"
 
 if printf 'hello' | \
     FAKE_PI_ARGS_FILE="$TMP_DIR/pi-fail-args.txt" \
+    FAKE_PI_STDIN_FILE="$TMP_DIR/pi-fail-stdin.txt" \
     FAKE_PI_SHOULD_FAIL=1 \
     DICTATION_CLEANUP_PI_BIN="$fake_pi" \
     "$SCRIPT" --mode light >"$TMP_DIR/pi-fail.out" 2>"$TMP_DIR/pi-fail.err"; then

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # pireview — Pi nvim review command reference
-# Source: https://github.com/tuliopaim/nvim/blob/7b4aae6/lua/tuliopaim/pi_review.lua
+# Uses Diffview.nvim with the local pi_review.lua integration
 # Usage: pireview [--flow|--keys|--help]
 
 set -euo pipefail
@@ -17,17 +17,16 @@ show_flow() {
   /nvim-review
     ↓
   Pi extension generates:
-    .pi/reviews/nvim-review-<stamp>.diff   (full-context diff)
+    .pi/reviews/nvim-review-<stamp>.diff   (review metadata)
     .pi/reviews/nvim-review-<stamp>.json   (persistent comments)
-    .pi/reviews/nvim-review-<stamp>.vim    (legacy vimscript fallback)
     ↓
   Pi spawns nvim with env vars:
-    PI_REVIEW_ROOT, PI_REVIEW_DIFF,
-    PI_REVIEW_JSON, PI_REVIEW_SCOPE
+    PI_REVIEW_ROOT, PI_REVIEW_DIFF, PI_REVIEW_JSON,
+    PI_REVIEW_SCOPE, PI_REVIEW_BACKEND=diffview
     ↓
-  nvim starts → pi_review.lua auto-loads via init.lua
+  nvim starts → pi_review.lua launches Diffview.nvim
     ↓
-  Rich review mode active in the diff buffer
+  Side-by-side review mode active
     ↓
   :qa → comments saved to JSON → Pi reads JSON →
   comments sent back to agent

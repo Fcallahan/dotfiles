@@ -1,6 +1,6 @@
 {
   "features": {
-    "editor": false,
+    "editor": true,
     "statusLine": true,
     "copyFriendly": false
   },

@@ -85,10 +85,13 @@ function Invoke-WslCleanup {
     try {
         [System.IO.File]::WriteAllText($tempIn, $Text, [System.Text.UTF8Encoding]::new($false))
         $wslInput = ConvertTo-WslPath $tempIn
+        $wslOutput = ConvertTo-WslPath $tempOut
+        $wslError = ConvertTo-WslPath $tempErr
         $resolvedWslScript = Resolve-WslScriptPath $WslScript
         $providerAssignment = "DICTATION_CLEANUP_PROVIDER=" + (Quote-Bash $Provider)
         $modelAssignment = "DICTATION_CLEANUP_MODEL=" + (Quote-Bash $Model)
-        $command = "$providerAssignment $modelAssignment $(Quote-Bash $resolvedWslScript) --mode $(Quote-Bash $Mode) < $(Quote-Bash $wslInput)"
+        # Let WSL write UTF-8 bytes directly; Windows PowerShell 5.1 corrupts UTF-8 native output during redirection.
+        $command = "$providerAssignment $modelAssignment $(Quote-Bash $resolvedWslScript) --mode $(Quote-Bash $Mode) < $(Quote-Bash $wslInput) > $(Quote-Bash $wslOutput) 2> $(Quote-Bash $wslError)"
 
         $arguments = @()
         if ($WslDistro.Trim() -ne "") {
@@ -96,7 +99,7 @@ function Invoke-WslCleanup {
         }
         $arguments += @("bash", "-lc", $command)
 
-        & wsl.exe @arguments > $tempOut 2> $tempErr
+        & wsl.exe @arguments
         $exitCode = $LASTEXITCODE
         $stdout = [System.IO.File]::ReadAllText($tempOut).Trim()
         $stderr = [System.IO.File]::ReadAllText($tempErr).Trim()

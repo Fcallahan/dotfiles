@@ -129,3 +129,6 @@ export PATH="$PATH:/home/franciscallahan/.dotnet/tools"
 
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
 . "$HOME/.cargo/env"
+
+# Netskope proxy for WSL (see ~/.config/wsl-proxy/env.sh)
+[ -f "$HOME/.config/wsl-proxy/env.sh" ] && . "$HOME/.config/wsl-proxy/env.sh"

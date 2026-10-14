@@ -1,7 +1,7 @@
-const SAFE_COMMAND = /^\s*(?:cat|head|tail|less|more|grep|rg|find|fd|ls|eza|tree|pwd|wc|sort|uniq|diff|file|stat|du|df|which|whereis|type|printenv|printf|echo|awk|uname|whoami|id|date|uptime|ps|free|jq|bat|column|cut|tr|fold|expand|nl|od|strings|hexdump|xxd)\b/i;
+const SAFE_COMMAND = /^\s*(?:cat|head|tail|less|more|grep|rg|find|fd|ls|eza|tree|pwd|cd|wc|sort|uniq|diff|file|stat|du|df|which|whereis|type|printenv|printf|echo|awk|uname|whoami|id|date|uptime|ps|free|jq|bat|column|cut|tr|fold|expand|nl|od|strings|hexdump|xxd)\b/i;
 
 // Read-only git subcommands (inspect, never mutate)
-const SAFE_GIT = /^\s*git(?:\s+-C\s+(?:"[^"]+"|'[^']+'|\S+))*\s+(?:status|log|diff|show|branch|remote|ls-files|ls-tree|rev-parse|config\s+--get|describe|shortlog|blame|annotate|name-rev|submodule\s+status|worktree\s+list|tag\s+-l|tag\s+--list|for-each-ref|count-objects|verify-pack|fsck|check-attr|check-ignore|check-mailmap|check-ref-format|help|version|var)\b/i;
+const SAFE_GIT = /^\s*git(?:\s+-C\s+(?:"[^"]+"|'[^']+'|\S+))*\s+(?:status|log|diff|show|branch|remote|ls-files|ls-tree|rev-parse|config\s+--get|describe|shortlog|blame|annotate|name-rev|merge-base|submodule\s+status|worktree\s+list|tag\s+-l|tag\s+--list|for-each-ref|count-objects|verify-pack|fsck|check-attr|check-ignore|check-mailmap|check-ref-format|help|version|var)\b/i;
 
 // Read-only gh subcommands
 const SAFE_GH = /^\s*gh\s+(?:auth\s+status|pr\s+(?:view|list|checks|diff|status|review\s+--help)|issue\s+(?:view|list|status)|run\s+(?:view|list)|api\s+(?:\/[\w\/.-]+|--method\s+GET\s+\S+)|search\s+(?:prs|issues|commits|code)|release\s+(?:view|list)|repo\s+(?:view|list))\b/i;
@@ -28,7 +28,7 @@ const SAFE_VERSION = /^\s*(?:node|python|python3|ruby|go|rustc|cargo)\s+--versio
 const SAFE_PSQL = /^\s*psql\b.*(?:-c|--command(?:=|\s))\s*["']\s*BEGIN\s+(?:TRANSACTION\s+)?READ\s+ONLY\s*;/i;
 const SAFE_BUILTIN = /^\s*(?:true|false|:)\s*$/i;
 
-const MUTATION = /\b(?:rm|rmdir|mv|cp|mkdir|touch|chmod|chown|ln|truncate|dd|shred|sudo|su|kill|pkill|killall)\b|\bpsql\b.*\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|CALL)\b|\bcurl\b.*(?:--request|-X)\s*(?:POST|PUT|PATCH|DELETE)\b|\bcurl\b.*(?:--data(?:-binary|-raw|-urlencode)?|-d|--upload-file|-T)\b|\bgit(?:\s+-C\s+(?:"[^"]+"|'[^']+'|\S+))*\s+(?:add|commit|push|pull|merge|rebase|reset|checkout|switch|restore|stash|cherry-pick|revert|tag|init|clone|clean)\b|\b(?:npm|pnpm|yarn)\s+(?:install|add|remove|uninstall|update|ci|link|publish)\b|\b(?:pip|pip3)\s+(?:install|uninstall)\b|\b(?:apt|apt-get|brew|dnf|yum|pacman)\s+(?:install|remove|purge|update|upgrade)\b|\b(?:vim|vi|nano|emacs|code|subl)\b|\bgh\s+(?:pr\s+(?:checkout|merge|close|reopen|ready|review|create|edit)|issue\s+(?:close|reopen|create|edit)|api\s+--method\s+(?:POST|PUT|PATCH|DELETE)|release\s+create|repo\s+(?:create|fork|rename|archive|delete)|secret\s+(?:set|remove)|variable\s+(?:set|remove))\b|\bacli\s+(?:jira\s+(?:workitem\s+(?:create|update|delete|transition)|project\s+create|board\s+create))\b|\baws\s+\S+\s+(?:cp\b|mv\b|sync\b|create-|delete-|update-|put-|post-|patch-|terminate-|stop-|start-|reboot-|run-|modify-|attach-|detach-|import-|export-|cancel-)\b|\bkubectl\s+(?:apply|create|delete|edit|patch|replace|rollout|scale|autoscale|label|annotate|taint|cordon|uncordon|drain|exec|attach|cp|port-forward|proxy|run|expose|set|config\s+(?:set|use-context|delete-context|rename-context))\b|\bdocker\s+(?:run|exec|start|stop|restart|kill|pause|unpause|rm|rmi|pull|push|build|commit|tag|save|load|export|import|cp|rename|update|create|network\s+(?:create|connect|disconnect|rm)|volume\s+(?:create|rm)|system\s+prune)\b|\bdotnet\s+(?:build|test|run|publish|pack|clean|restore|nuget|add|remove|new|tool\s+(?:install|uninstall|update)|format|watch|ef)\b/i;
+const MUTATION = /\b(?:rm|rmdir|mv|cp|mkdir|touch|chmod|chown|ln|truncate|dd|shred|sudo|su|kill|pkill|killall)\b|\bpsql\b.*\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|CALL)\b|\bcurl\b.*(?:--request|-X)\s*(?:POST|PUT|PATCH|DELETE)\b|\bcurl\b.*(?:--data(?:-binary|-raw|-urlencode)?|-d|--upload-file|-T)\b|\bgit(?:\s+-C\s+(?:"[^"]+"|'[^']+'|\S+))*\s+(?:add|commit|push|pull|merge(?!-)|rebase|reset|checkout|switch|restore|stash|cherry-pick|revert|tag|init|clone|clean)\b|\b(?:npm|pnpm|yarn)\s+(?:install|add|remove|uninstall|update|ci|link|publish)\b|\b(?:pip|pip3)\s+(?:install|uninstall)\b|\b(?:apt|apt-get|brew|dnf|yum|pacman)\s+(?:install|remove|purge|update|upgrade)\b|\bgh\s+(?:pr\s+(?:checkout|merge|close|reopen|ready|review|create|edit)|issue\s+(?:close|reopen|create|edit)|api\s+--method\s+(?:POST|PUT|PATCH|DELETE)|release\s+create|repo\s+(?:create|fork|rename|archive|delete)|secret\s+(?:set|remove)|variable\s+(?:set|remove))\b|\bacli\s+(?:jira\s+(?:workitem\s+(?:create|update|delete|transition)|project\s+create|board\s+create))\b|\baws\s+\S+\s+(?:cp\b|mv\b|sync\b|create-|delete-|update-|put-|post-|patch-|terminate-|stop-|start-|reboot-|run-|modify-|attach-|detach-|import-|export-|cancel-)\b|\bkubectl\s+(?:apply|create|delete|edit|patch|replace|rollout|scale|autoscale|label|annotate|taint|cordon|uncordon|drain|exec|attach|cp|port-forward|proxy|run|expose|set|config\s+(?:set|use-context|delete-context|rename-context))\b|\bdocker\s+(?:run|exec|start|stop|restart|kill|pause|unpause|rm|rmi|pull|push|build|commit|tag|save|load|export|import|cp|rename|update|create|network\s+(?:create|connect|disconnect|rm)|volume\s+(?:create|rm)|system\s+prune)\b|\bdotnet\s+(?:build|test|run|publish|pack|clean|restore|nuget|add|remove|new|tool\s+(?:install|uninstall|update)|format|watch|ef)\b/i;
 
 function isSafeSimpleCommand(command: string): boolean {
   return [
@@ -101,13 +101,23 @@ function splitShell(command: string): string[] | undefined {
 
 export type ShellCommandClassification = "safe" | "unknown" | "mutating-or-ambiguous";
 
-export function findMutationEvidence(command: string): string | undefined {
-  return command.match(MUTATION)?.[0];
+function stripFullLineComments(command: string): string {
+  return command
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*#/.test(line))
+    .join("\n");
+}
+
+function findMutationEvidence(command: string): string | undefined {
+  const executable = stripFullLineComments(command);
+  return executable.match(MUTATION)?.[0]
+    ?? executable.match(/(?:^|[;&|]\s*)(?:vim|vi|nano|emacs|code|subl)\b/i)?.[0];
 }
 
 export function classifyShellCommand(command: string): ShellCommandClassification {
-  if (findMutationEvidence(command)) return "mutating-or-ambiguous";
-  const parts = splitShell(command);
+  const executable = stripFullLineComments(command);
+  if (findMutationEvidence(executable)) return "mutating-or-ambiguous";
+  const parts = splitShell(executable);
   if (!parts?.length) return "mutating-or-ambiguous";
 
   let hasUnknownPart = false;

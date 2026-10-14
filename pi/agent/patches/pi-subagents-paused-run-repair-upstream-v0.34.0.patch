@@ -1,0 +1,167 @@
+diff --git a/src/runs/background/notify.ts b/src/runs/background/notify.ts
+index fd1f924..7ab1c9b 100644
+--- a/src/runs/background/notify.ts
++++ b/src/runs/background/notify.ts
+@@ -124,8 +124,7 @@ export function buildCompletionDetails(result: SubagentResult): SubagentNotifyDe
+ 	const agent = result.agent ?? "unknown";
+ 	const summary = typeof result.summary === "string" ? result.summary : "";
+ 	const paused = !result.success && (
+-		result.exitCode === 0
+-		|| result.state === "paused"
++		result.state === "paused"
+ 		|| summary.startsWith("Paused after interrupt.")
+ 	);
+ 	const status = paused ? "paused" : result.success ? "completed" : "failed";
+diff --git a/src/runs/background/run-status.ts b/src/runs/background/run-status.ts
+index de255e0..d966ca5 100644
+--- a/src/runs/background/run-status.ts
++++ b/src/runs/background/run-status.ts
+@@ -409,7 +409,7 @@ export function inspectSubagentStatus(params: RunStatusParams, deps: RunStatusDe
+ 					return { content: [{ type: "text", text: message }], isError: true, details: { mode: "single", results: [] } };
+ 				}
+ 			}
+-			const status = data.success ? "complete" : data.state === "paused" || data.exitCode === 0 ? "paused" : "failed";
++			const status = data.success ? "complete" : data.state === "paused" ? "paused" : "failed";
+ 			const runId = data.runId ?? data.id ?? resolvedId;
+ 			const lines = [`Run: ${runId}`, `State: ${status}`, `Result: ${resultPath}`];
+ 			const children = Array.isArray(data.results) ? data.results : data.agent ? [{ agent: data.agent, sessionFile: data.sessionFile }] : [];
+diff --git a/src/runs/background/stale-run-reconciler.ts b/src/runs/background/stale-run-reconciler.ts
+index 5be1805..23d7eed 100644
+--- a/src/runs/background/stale-run-reconciler.ts
++++ b/src/runs/background/stale-run-reconciler.ts
+@@ -121,7 +121,7 @@ interface ResultRepairData {
+ function readResultRepairData(resultPath: string): ResultRepairData | undefined {
+ 	try {
+ 		const data = JSON.parse(fs.readFileSync(resultPath, "utf-8")) as { success?: boolean; state?: string; exitCode?: number; results?: ResultChildOutcome[] };
+-		const state = data.success ? "complete" : data.state === "paused" || data.exitCode === 0 ? "paused" : "failed";
++		const state = data.success ? "complete" : data.state === "paused" ? "paused" : "failed";
+ 		return { state, ...(Array.isArray(data.results) ? { results: data.results } : {}) };
+ 	} catch (error) {
+ 		if (isNotFoundError(error)) return undefined;
+@@ -345,6 +345,18 @@ export function reconcileAsyncRun(asyncDir: string, options: ReconcileAsyncRunOp
+ 	}
+ 
+ 	if (effectiveStatus.state !== "running" || typeof effectiveStatus.pid !== "number") {
++		if (effectiveStatus.state === "paused" && typeof effectiveStatus.pid === "number") {
++			const liveness = checkPidLiveness(effectiveStatus.pid, options.kill);
++			if (liveness === "dead") {
++				return writeFailedRepair(
++					asyncDir,
++					effectiveStatus,
++					resultPath,
++					now,
++					`Async runner process ${effectiveStatus.pid} is dead but run was left in "paused" state.`,
++				);
++			}
++		}
+ 		return { status: status ?? null, repaired: false, resultPath };
+ 	}
+ 
+diff --git a/test/unit/notify.test.ts b/test/unit/notify.test.ts
+index a5c231f..cbd0554 100644
+--- a/test/unit/notify.test.ts
++++ b/test/unit/notify.test.ts
+@@ -307,6 +307,7 @@ describe("completion formatting helpers", () => {
+ 
+ 	it("buildCompletionDetails derives paused status from state and summary", () => {
+ 		assert.equal(buildCompletionDetails({ id: "x", agent: "w", success: false, state: "paused", summary: "Paused after interrupt.", timestamp: 1 }).status, "paused");
++		assert.equal(buildCompletionDetails({ id: "x", agent: "w", success: false, summary: "boom", exitCode: 0, timestamp: 1 }).status, "failed");
+ 		assert.equal(buildCompletionDetails({ id: "x", agent: "w", success: false, summary: "boom", exitCode: 1, timestamp: 1 }).status, "failed");
+ 		assert.equal(buildCompletionDetails({ id: "x", agent: "w", success: true, summary: "ok", exitCode: 0, timestamp: 1 }).status, "completed");
+ 	});
+diff --git a/test/unit/stale-run-reconciler.test.ts b/test/unit/stale-run-reconciler.test.ts
+index 80b6f64..de96231 100644
+--- a/test/unit/stale-run-reconciler.test.ts
++++ b/test/unit/stale-run-reconciler.test.ts
+@@ -28,6 +28,91 @@ describe("async stale-run reconciliation", () => {
+ 		assert.equal(checkPidLiveness(123, () => { throw new Error("boom"); }), "unknown");
+ 	});
+ 
++	it("does not infer paused state from a zero exit code without explicit paused state", () => {
++		const root = tempRoot("pi-stale-zero-exit-");
++		try {
++			const asyncDir = path.join(root, "run-zero-exit");
++			const resultsDir = path.join(root, "results");
++			fs.mkdirSync(resultsDir, { recursive: true });
++			writeStatus(asyncDir, {
++				runId: "run-zero-exit",
++				mode: "single",
++				state: "running",
++				pid: 12345,
++				startedAt: 1000,
++				lastUpdate: 1000,
++				steps: [{ agent: "worker", status: "running", startedAt: 1000 }],
++			});
++			fs.writeFileSync(path.join(resultsDir, "run-zero-exit.json"), JSON.stringify({
++				id: "run-zero-exit",
++				success: false,
++				exitCode: 0,
++				summary: "Runner exited before producing a successful result.",
++			}, null, 2), "utf-8");
++
++			const result = reconcileAsyncRun(asyncDir, { resultsDir, now: () => 2000 });
++			assert.equal(result.repaired, true);
++			assert.equal(result.status?.state, "failed");
++			assert.equal(result.status?.steps?.[0]?.status, "failed");
++		} finally {
++			fs.rmSync(root, { recursive: true, force: true });
++		}
++	});
++
++	it("repairs a paused run with a dead runner pid and no result file", () => {
++		const root = tempRoot("pi-stale-paused-dead-");
++		try {
++			const asyncDir = path.join(root, "run-paused-dead");
++			const resultsDir = path.join(root, "results");
++			writeStatus(asyncDir, {
++				runId: "run-paused-dead",
++				mode: "single",
++				state: "paused",
++				pid: 12345,
++				startedAt: 1000,
++				lastUpdate: 1000,
++				steps: [{ agent: "worker", status: "paused", startedAt: 1000 }],
++			});
++
++			const result = reconcileAsyncRun(asyncDir, {
++				resultsDir,
++				kill: () => { throw errno("ESRCH"); },
++				now: () => 2000,
++			});
++			assert.equal(result.repaired, true);
++			assert.equal(result.status?.state, "failed");
++			assert.match(result.message ?? "", /dead but run was left in "paused" state/);
++		} finally {
++			fs.rmSync(root, { recursive: true, force: true });
++		}
++	});
++
++	it("preserves a paused run while its runner pid is alive", () => {
++		const root = tempRoot("pi-stale-paused-live-");
++		try {
++			const asyncDir = path.join(root, "run-paused-live");
++			writeStatus(asyncDir, {
++				runId: "run-paused-live",
++				mode: "single",
++				state: "paused",
++				pid: 12345,
++				startedAt: 1000,
++				lastUpdate: 1000,
++				steps: [{ agent: "worker", status: "paused", startedAt: 1000 }],
++			});
++
++			const result = reconcileAsyncRun(asyncDir, {
++				resultsDir: path.join(root, "results"),
++				kill: () => true,
++				now: () => 2000,
++			});
++			assert.equal(result.repaired, false);
++			assert.equal(result.status?.state, "paused");
++		} finally {
++			fs.rmSync(root, { recursive: true, force: true });
++		}
++	});
++
+ 	it("marks a running async run failed when the runner pid is dead and no result exists", () => {
+ 		const root = tempRoot("pi-stale-run-");
+ 		try {

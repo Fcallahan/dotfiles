@@ -127,8 +127,13 @@ alias shell="nvim ~/.zshrc"
 alias cls="clear"
 alias oc="opencode"
 
+# Node emits UNDICI-EHPA when Pi starts with the WSL HTTP proxy; keep other warnings visible.
+pi() {
+    NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--disable-warning=UNDICI-EHPA" command pi "$@"
+}
+
 # pi aliases
-alias pic='pi --model openai-codex/gpt-5.6-sol:medium'
+alias pic='pi --model openai-codex/gpt-6-sol:medium'
 
 alias ll="ls -lat"
 alias la="ls -la"
@@ -416,18 +421,19 @@ wtpr() {
 
 # Convenience: create worktree + new branch from specified base (defaults to main)
 # Usage: wtnew <directory-name> [base-branch]
-# Always uses origin/<branch> format for bare repository compatibility
+# Creates and tracks origin/<directory-name> without inheriting the base branch as upstream
 # Works from both bare repos and worktrees
 wtnew() {
     if [[ -z "$1" ]]; then
         echo "Usage: wtnew <directory-name> [base-branch]"
-        echo "Creates worktree with new branch from origin/<base-branch>"
+        echo "Creates a worktree from origin/<base-branch> and tracks origin/<directory-name>"
         echo "Default base-branch: main"
         echo "Works from both bare repos and worktrees"
         return 1
     fi
 
     local dir_name="$1"
+    local branch_name="$(basename "$dir_name")"
     local base_branch="${2:-main}"
     local start_point="origin/${base_branch}"
 
@@ -470,10 +476,16 @@ wtnew() {
         echo "Proceeding with existing remote ref..."
     }
 
-    # Create the worktree
-    git worktree add -b "$(basename "$dir_name")" "$dir_name" "$start_point" || {
+    # Create the worktree without inheriting the base branch as its upstream
+    git worktree add --no-track -b "$branch_name" "$dir_name" "$start_point" || {
         echo "Error: Failed to create worktree"
         return 1
+    }
+
+    # Create the matching remote branch and configure it as the upstream
+    echo "Setting upstream to origin/${branch_name}..."
+    git -C "$dir_name" push -u origin "$branch_name" || {
+        echo "Warning: Worktree created, but upstream setup failed"
     }
 
     echo "✅ Created worktree '$dir_name' with new branch from $start_point"
@@ -772,6 +784,7 @@ cmds() {
     echo ""
 
     echo "\033[1;33m⚡ FUNCTIONS:\033[0m"
+    echo "  \033[1;32mcodexproxy\033[0m             Start/check Codex proxy (Claude Code → Codex)"
     echo "  \033[1;32mrider\033[0m                 Launch Rider IDE with proper window manager"
     echo "  \033[1;32mmkcd\033[0m <dir>           Create directory and navigate into it"
     echo "  \033[1;32mmkpr\033[0m [title] [body]  Push branch and create PR (browser or inline)"
@@ -787,6 +800,11 @@ cmds() {
 
     echo "\033[1;33m🔧 ALIASES:\033[0m"
     echo "  \033[1;34msrc\033[0m                   Reload zsh configuration"
+    echo "  \033[1;34mccc\033[0m                   Claude Code → company account (API billing)"
+    echo "  \033[1;34mccp\033[0m                   Claude Code → personal subscription"
+    echo "  \033[1;34mcsol\033[0m                  Claude Code → Codex (gpt-6-astra, high effort)"
+    echo "  \033[1;34mcluna\033[0m                 Claude Code → Codex (gpt-5.6-luna)"
+    echo "    \033[1;90m└─ Codex aliases need the proxy: run codexproxy\033[0m"
     echo "  \033[1;34mshell\033[0m                 Edit ~/.zshrc in nvim"
     echo "  \033[1;34mseedrules\033[0m             Seed billing rules into database"
     echo "  \033[1;34mcde2\033[0m                  Navigate to EMSmart2.0 directory"
@@ -868,6 +886,32 @@ if ! tmux has-session -t gh-watch 2>/dev/null; then
     tmux new-session -d -s gh-watch "~/.local/bin/gh-notification-watch"
 fi
 
+# Auto-start Codex proxy (Claude Code → Codex, serves 127.0.0.1:18765)
+if ! tmux has-session -t ccp 2>/dev/null; then
+    tmux new-session -d -s ccp 'claude-code-proxy serve'
+fi
+
+# codexproxy: start the Codex proxy if it's down; no-op if already running
+codexproxy() {
+    if tmux has-session -t ccp 2>/dev/null; then
+        echo "Codex proxy already running (tmux:ccp → 127.0.0.1:18765)"
+    else
+        tmux new-session -d -s ccp 'claude-code-proxy serve'
+        echo "Codex proxy started (tmux:ccp → 127.0.0.1:18765)"
+    fi
+}
+
+# Keep company API-billed and personal subscription credentials isolated.
+alias ccc='ANTHROPIC_API_KEY="$(jq -r .apiKey ~/.config/anthropic/credentials/default.json)" claude'
+alias ccp='CLAUDE_CONFIG_DIR="$HOME/.claude-personal" claude'
+
 # Claude Code through local Codex proxy (process-scoped; plain claude remains Anthropic)
-alias csol='ANTHROPIC_BASE_URL=http://127.0.0.1:18765 ANTHROPIC_AUTH_TOKEN=unused ANTHROPIC_MODEL=gpt-5.6-sol[1m] ANTHROPIC_SMALL_FAST_MODEL=gpt-5.6-luna[1m] CLAUDE_CODE_AUTO_COMPACT_WINDOW=272000 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK=1 claude'
+alias csol='ANTHROPIC_BASE_URL=http://127.0.0.1:18765 ANTHROPIC_AUTH_TOKEN=unused ANTHROPIC_MODEL=gpt-6-astra[1m] ANTHROPIC_SMALL_FAST_MODEL=gpt-5.6-luna[1m] CLAUDE_CODE_AUTO_COMPACT_WINDOW=272000 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK=1 claude --effort high'
 alias cluna='ANTHROPIC_BASE_URL=http://127.0.0.1:18765 ANTHROPIC_AUTH_TOKEN=unused ANTHROPIC_MODEL=gpt-5.6-luna[1m] ANTHROPIC_SMALL_FAST_MODEL=gpt-5.6-luna[1m] CLAUDE_CODE_AUTO_COMPACT_WINDOW=272000 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK=1 claude'
+
+# Dadbod DBUI connections file
+alias dadbod='nvim ~/.local/share/db_ui/connections.json'
+alias dbuic='nvim ~/.local/share/db_ui/connections.json'
+
+# Provision or rotate a Ryde Central API client credential
+alias rydeclient='/home/franciscallahan/code/Work/scripts/ryde-client-setup.sh'

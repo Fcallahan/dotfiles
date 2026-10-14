@@ -3,7 +3,7 @@
 // one cheap subagent per unit, each writing a trivial JSON artifact.
 // Dogfoods the portable homedir()-based dynamic-import preamble documented in
 // ~/.pi/agent/skills/dynamic-workflows/SKILL.md.
-// Usage: node ~/.pi/agent/workflows/saved/smoke-test.mjs [--force] [--retries 2] [--concurrency 16] [--harness pi|claude] [--warm] <unit...>
+// Usage: node ~/.pi/agent/workflows/saved/smoke-test.mjs [--force] [--retries 2] [--concurrency 6] [--harness pi|claude] [--warm] <unit...>
 //
 // --harness claude runs the same fan-out through the claude CLI harness
 // instead of pi (role "reviewer", but with the model forced to "haiku" —
@@ -41,11 +41,11 @@ for (let i = 0; i < rawArgv.length; i++) {
 
 const args = parseWorkflowArgs(filteredArgv);
 const units = args.positionals;
-const CONCURRENCY = Number(args.concurrency ?? process.env.PI_WF_CONCURRENCY ?? 16);
+const CONCURRENCY = Number(args.concurrency ?? process.env.PI_WF_CONCURRENCY ?? 6);
 const RETRIES = Number(args.retries ?? process.env.PI_WF_RETRIES ?? 2);
 
 if (units.length === 0) {
-  console.error("Usage: node ~/.pi/agent/workflows/saved/smoke-test.mjs [--force] [--retries 2] [--concurrency 16] [--harness pi|claude] [--warm] <unit...>");
+  console.error("Usage: node ~/.pi/agent/workflows/saved/smoke-test.mjs [--force] [--retries 2] [--concurrency 6] [--harness pi|claude] [--warm] <unit...>");
   process.exit(2);
 }
 

@@ -1,0 +1,31 @@
+{
+  "hostAvailableBuiltins": [
+    "read",
+    "bash",
+    "powershell",
+    "edit",
+    "write",
+    "grep",
+    "find",
+    "ls"
+  ],
+  "effectiveTools": [
+    "read",
+    "grep",
+    "find",
+    "ls",
+    "bash",
+    "contact_supervisor"
+  ],
+  "requiredChildTools": [
+    "read",
+    "grep",
+    "find",
+    "ls",
+    "bash"
+  ],
+  "unavailableHostBuiltins": [],
+  "excludedBashRespected": true,
+  "extensionErrors": [],
+  "modelCalls": 0
+}

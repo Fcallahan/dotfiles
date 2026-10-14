@@ -79,6 +79,8 @@ LINKS=(
     "pi/agent/extensions/nvim-review:$HOME/.pi/agent/extensions/nvim-review"
     "pi/agent/extensions/openrouter-deepseek-only.ts:$HOME/.pi/agent/extensions/openrouter-deepseek-only.ts"
     "pi/agent/prompts:$HOME/.pi/agent/prompts"
+    "pi/agent/patches:$HOME/.pi/agent/patches"
+    "pi/agent/scripts:$HOME/.pi/agent/scripts"
     "pi/agent/skills/dynamic-workflows:$HOME/.pi/agent/skills/dynamic-workflows"
     "pi/agent/workflows:$HOME/.pi/agent/workflows"
 )

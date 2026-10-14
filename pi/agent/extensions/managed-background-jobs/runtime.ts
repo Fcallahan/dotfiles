@@ -30,6 +30,8 @@ export interface JobSpec {
   sessionId?: string;
   environment?: Record<string, string>;
   kind?: string;
+  /** false = do not wake the agent when this job finishes. Defaults to true. */
+  notify?: boolean;
 }
 
 export interface JobState {
@@ -62,6 +64,7 @@ export interface StartJobOptions {
   sessionId?: string;
   environment?: Record<string, string>;
   kind?: string;
+  notify?: boolean;
   rootDir?: string;
 }
 
@@ -117,6 +120,7 @@ export async function startManagedJob(options: StartJobOptions): Promise<Managed
     sessionId: options.sessionId,
     environment: options.environment,
     kind: options.kind,
+    notify: options.notify === false ? false : undefined,
   };
   const state: JobState = {
     version: 1,
@@ -169,7 +173,8 @@ export async function startManagedJob(options: StartJobOptions): Promise<Managed
   supervisor.unref();
 
   const job = await Promise.race([waitForJobStart(dir, 2_000), startupFailure]);
-  if (job.state.status === "failed") {
+  // A command that ran and exited non-zero quickly is a normal failed job, not a startup failure.
+  if (job.state.status === "failed" && !job.state.processPid) {
     throw new Error(job.state.error ?? `Background job ${id} failed to start.`);
   }
   return job;
@@ -267,14 +272,53 @@ export async function restartManagedJob(
     sessionId: options.sessionId ?? previous.spec.sessionId,
     environment: previous.spec.environment,
     kind: previous.spec.kind,
+    notify: previous.spec.notify,
     rootDir: options.rootDir,
   });
+}
+
+/** Wait until a job reaches a terminal status, the timeout expires, or the signal aborts. */
+export async function waitForManagedJob(
+  id: string,
+  options: { timeoutMs: number; signal?: AbortSignal; rootDir?: string; pollMs?: number },
+): Promise<ManagedJob> {
+  const deadline = Date.now() + Math.max(0, options.timeoutMs);
+  let job = await getManagedJob(id, options.rootDir);
+  while (!isTerminalStatus(job.state.status) && Date.now() < deadline && !options.signal?.aborted) {
+    await delay(Math.min(options.pollMs ?? 500, Math.max(1, deadline - Date.now())));
+    job = await getManagedJob(id, options.rootDir);
+  }
+  return job;
+}
+
+export function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h${minutes}m`;
+  if (minutes > 0) return `${minutes}m${seconds}s`;
+  return `${seconds}s`;
+}
+
+export function jobElapsedMs(job: ManagedJob, now = Date.now()): number | undefined {
+  const startedAt = Date.parse(job.state.startedAt ?? job.spec.createdAt);
+  if (!Number.isFinite(startedAt)) return undefined;
+  const endedAt = isTerminalStatus(job.state.status)
+    ? Date.parse(job.state.finishedAt ?? job.state.updatedAt)
+    : now;
+  if (!Number.isFinite(endedAt)) return undefined;
+  return Math.max(0, endedAt - startedAt);
 }
 
 export function formatJob(job: ManagedJob): string {
   const pid = job.state.processPid ? ` pid=${job.state.processPid}` : "";
   const exit = job.state.exitCode != null ? ` exit=${job.state.exitCode}` : "";
-  return `${job.spec.id} [${job.state.status}] ${job.spec.title}${pid}${exit}\n  cwd: ${job.spec.cwd}\n  output: ${job.outputPath}`;
+  const elapsedMs = jobElapsedMs(job);
+  const elapsed = elapsedMs !== undefined
+    ? ` ${isTerminalStatus(job.state.status) ? "ran" : "elapsed"}=${formatDuration(elapsedMs)}`
+    : "";
+  return `${job.spec.id} [${job.state.status}] ${job.spec.title}${pid}${exit}${elapsed}\n  cwd: ${job.spec.cwd}\n  output: ${job.outputPath}`;
 }
 
 function signalSupervisor(job: ManagedJob, signal: NodeJS.Signals): void {

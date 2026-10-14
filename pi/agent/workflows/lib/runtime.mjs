@@ -230,7 +230,7 @@ export async function runUnits({
   task = "",
   units,
   worker,
-  concurrency = 16,
+  concurrency = 6,
   retries = 2,
   resume = true,
   force = false,

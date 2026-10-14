@@ -7,7 +7,7 @@
   "app.session.new": "ctrl+alt+n",
   "app.session.resume": "ctrl+alt+l",
   "app.session.tree": "ctrl+alt+g",
-  "app.session.fork": "ctrl+alt+f",
+  "app.session.fork": "ctrl+shift+alt+f",
   "app.session.togglePath": "ctrl+shift+alt+p",
   "app.model.select": "ctrl+alt+m",
   "app.model.cycleForward": "f2",

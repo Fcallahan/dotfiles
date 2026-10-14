@@ -34,7 +34,7 @@ cd ~/dotfiles
 
 The installer uses the latest GitHub release, requires version `0.1.17` or newer, downloads the
 matching Linux artifact and published checksum, verifies both the checksum and ELF type, then
-installs the binary at `~/.local/bin/claude-code-proxy` with mode `0755`.
+installs the binary at `~/.local/bin/claude-code-proxy` with mode `0755`. Version `0.1.39` or newer is required for GPT-6 Astra.
 
 It never runs a remote shell script and never installs with Homebrew.
 
@@ -94,7 +94,7 @@ Detach from tmux with `Ctrl+B`, then `D`. No systemd unit or autostart is config
 Start a fresh shell before using the aliases:
 
 ```bash
-csol   # GPT-5.6 Sol
+csol   # GPT-6 Astra
 cluna  # GPT-5.6 Luna
 ```
 

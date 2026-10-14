@@ -28,7 +28,7 @@ Write a project-local Node ESM orchestrator in `.pi/workflows/<slug>.mjs`. The s
 - adversarial verification
 - final report merging
 
-Each unit calls `spawnAgent()` to launch a fresh, isolated, headless `pi -p` subprocess. Coordination glue is plain Node and spends no model tokens.
+Each unit calls `spawnAgent()` to launch a fresh, isolated, headless `pi -p` subprocess. Coordination glue is plain Node and spends no model tokens. Do this only when per-unit isolation adds value; do not turn a normal changed-code or PR review into one reviewer per file.
 
 ## Decision rubric
 
@@ -48,6 +48,7 @@ Prefer normal pi behavior/subagents when:
 - There is one coherent implementation path and no large fan-out.
 - The built-in `worker`/`reviewer`/`planner` chain gives enough structure.
 - Multiple writers would touch the same worktree. Keep writes single-threaded unless using explicit worktree isolation.
+- One consolidated review over a bounded diff would cover the same evidence with less coordination than per-file fan-out.
 
 ## Required imports
 
@@ -60,7 +61,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const WF_LIB = join(homedir(), ".pi/agent/workflows/lib");
-const { spawnAgent, CHEAP_MODEL, SMART_MODEL, agentForRole, ROLES } = await import(pathToFileURL(join(WF_LIB, "agent.mjs")).href);
+const { spawnAgent, CHEAP_MODEL, REVIEW_MODEL, agentForRole, ROLES } = await import(pathToFileURL(join(WF_LIB, "agent.mjs")).href);
 const { runUnits, requireJsonFields, parseWorkflowArgs, fileFingerprint, slugify } =
   await import(pathToFileURL(join(WF_LIB, "runtime.mjs")).href);
 ```
@@ -70,7 +71,7 @@ const { runUnits, requireJsonFields, parseWorkflowArgs, fileFingerprint, slugify
 `spawnAgent()` can run each unit through one of two harnesses:
 
 - `harness: "pi"` (default, unchanged) — spawns the local `pi` CLI, OpenRouter-routed models (`CHEAP_MODEL`/`DEFAULT_MODEL`/deepseek).
-- `harness: "claude"` — spawns the user's `claude` CLI (subscription auth, no `provider` option) via `stream-json` so the same first-stdout-byte watchdog and artifact-write contract apply identically. Tool names are mapped from this lib's pi-style list (`read,bash,edit,write,grep,find,ls`) to claude's `--allowedTools` (`Read,Bash,Edit,Write,Grep,Glob`); `Write` is always included. The framed prompt is fed over stdin (not argv) — see "Claude settings-source isolation" below for what else this harness sets.
+- `harness: "claude"` — spawns the user's `claude` CLI (using its active subscription or API-account auth; no `provider` option) via `stream-json` so the same first-stdout-byte watchdog and artifact-write contract apply identically. Tool names are mapped from this lib's pi-style list (`read,bash,edit,write,grep,find,ls`) to claude's `--allowedTools` (`Read,Bash,Edit,Write,Grep,Glob`); `Write` is always included. The framed prompt is fed over stdin (not argv) — see "Claude settings-source isolation" below for what else this harness sets.
 
 Rather than set `harness`/`model` by hand, pass a **role** — either directly to `spawnAgent({ role: "reviewer", ... })` (explicit `harness`/`model` in the same call still win) or via `agentForRole(role, overrides)`:
 
@@ -82,22 +83,23 @@ const { harness, model } = agentForRole("verifier", { timeoutMs: 5 * 60_000 });
 
 | role | harness | model | timeoutMs | use for |
 |---|---|---|---|---|
-| `planner` | claude | `PI_WF_PLANNER_MODEL` ?? `"fable"` | 30 min | up-front plan/approach for a workflow |
-| `architect` | claude | `PI_WF_ARCHITECT_MODEL` ?? `"fable"` | 30 min | design/structural decisions |
-| `reviewer` | claude | `PI_WF_REVIEWER_MODEL` ?? `SMART_MODEL` | default (15 min) | code/finding review |
-| `verifier` | claude | `PI_WF_VERIFIER_MODEL` ?? `"sonnet"` | default (15 min) | adversarial verification (refute-or-confirm) |
+| `planner` | claude | `PI_WF_PLANNER_MODEL` ?? `"fable"` | 30 min | consequential unresolved plan/approach |
+| `architect` | claude | `PI_WF_ARCHITECT_MODEL` ?? `"fable"` | 30 min | consequential design/structural decision |
+| `adjudicator` / `oracle` | claude | matching override ?? `"fable"` | 30 min | one disputed high-impact question |
+| `reviewer` | claude | `PI_WF_REVIEWER_MODEL` ?? `"sonnet"` | default (15 min) | one consolidated code/finding review |
+| `verifier` | claude | `PI_WF_VERIFIER_MODEL` ?? `"sonnet"` | default (15 min) | refute a disputed high-impact finding |
 | `scout` | pi | `CHEAP_MODEL` | default (15 min) | broad low-judgment scanning |
 | `mapper` | pi | `CHEAP_MODEL` | default (15 min) | mapping/indexing units |
 | `classifier` | pi | `CHEAP_MODEL` | default (15 min) | bulk classification |
 | `worker` | pi | `DEFAULT_MODEL` | default (15 min) | default/mechanical work; fallback for unknown roles |
 
-**Routing guidance:** `planner`/`architect` are the lowest-volume, deepest-judgment phases (one up-front plan, one design decision per workflow) — they default to `fable`, the deepest-reasoning model, since volume is low enough that cost is a non-issue; their turns can run long, hence the 30-minute `timeoutMs` (a caller-supplied `timeoutMs` in the same `spawnAgent`/`agentForRole` call still wins — role defaults are the fallback, not a ceiling). `verifier` is the highest-volume judgment phase (adversarial verification across many candidates) — it defaults to `sonnet`: near-opus judgment quality for confirm/refute work, cheaper and drawing from a separate rate-limit window than fable/opus, so wide verifier fan-outs don't compete with planner/architect/reviewer for the same subscription budget. `reviewer` is unchanged (`SMART_MODEL`, i.e. `"opus"` by default). Volume phases — scanning, mapping, classification, mechanical work — use `scout`/`mapper`/`classifier`/`worker` (pi/deepseek). Claude units draw on the user's subscription rate limits: **keep claude fan-outs narrow** (concurrency is capped at `PI_WF_CLAUDE_CONCURRENCY` — default 3 — regardless of the workflow's own `--concurrency`) and prefer deepseek roles for anything high-volume.
+**Routing guidance:** Normal work stays with the parent. Use `scout`/`mapper` only when focused inspection cannot locate the relevant ownership or a real repeated unit list needs isolation. Use one `reviewer` on Sonnet for a bounded risky diff. Do not add `verifier` unless that review leaves a disputed high-impact finding. Use `planner`/`architect`/`adjudicator`/`oracle` on Fable only for a concrete unresolved architecture, security, concurrency, data-integrity, conflicting-requirements, or unknown-root-cause question. Never route to Fable merely because a task has several files or a progress plan. Claude units draw on the user's rate limits or API billing, so keep them sequential by default even though the safety cap permits more concurrency.
 
 ### Claude settings-source isolation
 
 A bare `claude -p` child loads the user/project/local settings sources by default, which pulls this user's `~/.claude/CLAUDE.md` (global infra notes, model-dispatch policy, commit rules — see that file for the full list) and its auto-memory into every headless subagent. That's irrelevant-to-conflicting context for a narrow spawned unit, wastes tokens, and — worse for this lib's purposes — makes the prompt prefix differ per machine/user, defeating provider-side prompt caching.
 
-The claude harness therefore passes `--setting-sources ""` by default (verified empirically against claude 2.1.211): this excludes all three sources — user `CLAUDE.md`/memory, project `CLAUDE.md`/`.claude/settings.json`, and local `.claude/settings.local.json` — while leaving subscription auth intact (auth lives under `~/.claude` but is credential storage, not a "setting source," so it's unaffected).
+The claude harness therefore passes `--setting-sources ""` by default (verified empirically against claude 2.1.211): this excludes all three sources — user `CLAUDE.md`/memory, project `CLAUDE.md`/`.claude/settings.json`, and local `.claude/settings.local.json` — while leaving the active Claude CLI authentication intact (auth lives under `~/.claude` but is credential storage, not a "setting source," so it is unaffected).
 
 Escape hatch: set `PI_WF_CLAUDE_SETTINGS_SOURCES=default` or `=1` to skip the isolation flag entirely and fall back to claude's normal default sources (today's un-isolated behavior). Any other value is passed through verbatim as the `--setting-sources` value — e.g. `PI_WF_CLAUDE_SETTINGS_SOURCES=project,local` to keep project-level conventions for whatever repo the subagent's `cwd` happens to be, while still dropping the user's global `CLAUDE.md`.
 
@@ -112,10 +114,11 @@ When writing your own workflow's `prompt`/`appendSystemPrompt`, follow the same 
 
 ### Env knobs
 
-- `PI_WF_SMART_MODEL` (default `"opus"`) — smart model used by `reviewer` (and any role whose own default still points at `SMART_MODEL`) unless overridden per-role. `"fable"` also works on this subscription if you want to switch.
-- `PI_WF_PLANNER_MODEL` / `PI_WF_ARCHITECT_MODEL` — per-role overrides for `planner`/`architect`, falling back to `"fable"` (not `PI_WF_SMART_MODEL`).
-- `PI_WF_REVIEWER_MODEL` — override for `reviewer`, falling back to `PI_WF_SMART_MODEL`.
-- `PI_WF_VERIFIER_MODEL` — override for `verifier`, falling back to `"sonnet"` (not `PI_WF_SMART_MODEL`).
+- `PI_WF_SMART_MODEL` (default `"fable"`) — exported explicit escalation model for callers that intentionally import `SMART_MODEL`; generic Claude runs do not use it.
+- `PI_WF_PLANNER_MODEL` / `PI_WF_ARCHITECT_MODEL` — per-role overrides for `planner`/`architect`, falling back to `"fable"`.
+- `PI_WF_ADJUDICATOR_MODEL` / `PI_WF_ORACLE_MODEL` — overrides for the matching high-impact escalation role, falling back to `"fable"`.
+- `PI_WF_REVIEWER_MODEL` — override for `reviewer`, falling back to `"sonnet"`.
+- `PI_WF_VERIFIER_MODEL` — override for `verifier`, falling back to `"sonnet"`.
 - `PI_WF_CLAUDE_CONCURRENCY` (default `3`) — max concurrent claude children across the whole process, independent of `runUnits`' `concurrency`.
 - `PI_WF_CLAUDE_BIN` (default `"claude"`) — override the claude binary/path if it's not on `PATH`.
 - `PI_WF_CLAUDE_SETTINGS_SOURCES` — controls the claude harness's settings-source isolation (see "Claude settings-source isolation" above). `"default"`/`"1"` disable isolation; any other value is passed through verbatim as `--setting-sources`.
@@ -134,7 +137,7 @@ Scripts should support:
 --force          # ignore previous artifacts
 --no-resume      # rerun this invocation without reusing done units
 --retries 2
---concurrency 16
+--concurrency 6
 ```
 
 When using `run_dynamic_workflow`, pass those controls as tool parameters (`force`, `noResume`, `retries`, `concurrency`) and pass unit paths/items in `args`.
@@ -236,7 +239,7 @@ const { runUnits, requireJsonFields, parseWorkflowArgs, fileFingerprint } =
   await import(pathToFileURL(join(WF_LIB, "runtime.mjs")).href);
 
 const args = parseWorkflowArgs();
-const CONCURRENCY = Number(args.concurrency ?? process.env.PI_WF_CONCURRENCY ?? 16);
+const CONCURRENCY = Number(args.concurrency ?? process.env.PI_WF_CONCURRENCY ?? 6);
 const RETRIES = Number(args.retries ?? process.env.PI_WF_RETRIES ?? 2);
 
 await mkdir(".pi/workflows", { recursive: true });
@@ -244,7 +247,7 @@ await mkdir(".pi/workflows", { recursive: true });
 // Replace with deterministic unit discovery for the task.
 const units = args.positionals;
 if (units.length === 0) {
-  console.error("Usage: node .pi/workflows/<slug>.mjs [--force] [--retries 2] [--concurrency 16] <unit...>");
+  console.error("Usage: node .pi/workflows/<slug>.mjs [--force] [--retries 2] [--concurrency 6] <unit...>");
   process.exit(2);
 }
 
@@ -327,10 +330,11 @@ console.log(`DONE: ${confirmed.length} confirmed → workflow-report.md`);
 
 - Restate the global goal inside every `spawnAgent()` prompt.
 - Give each subagent one unit or one verification target.
+- Do not create units merely because files exist. If the task is a changed-code or PR review, prefer one consolidated reviewer unless independent per-file verdicts are required.
 - Use `tools: "read,bash"` for review/verification. `spawnAgent()` adds `write` only for the required artifact.
 - Use `outputContract` whenever the JSON shape differs from `{ summary, findings, confidence }`.
 - Use `CHEAP_MODEL` for bounded repetitive verification/classification; use the default model for nuanced judgment.
-- For judgment-heavy phases, prefer `agentForRole("planner"|"architect"|"reviewer"|"verifier")` (claude harness; fable for planner/architect, opus for reviewer, sonnet for verifier — see the ROLES table above) over hand-setting `harness`/`model`; keep those fan-outs narrow (`PI_WF_CLAUDE_CONCURRENCY`, default 3) since they draw on the user's claude subscription rate limits. Keep high-volume phases on `scout`/`mapper`/`classifier`/`worker` (pi/deepseek).
+- Prefer `agentForRole(...)` over hand-setting harness/model: Sonnet for one routine `reviewer`; Fable only for a concrete `planner`/`architect`/`adjudicator`/`oracle` escalation; DeepSeek for genuine high-volume `scout`/`mapper`/`classifier` work. A separate `verifier` is justified only by a disputed high-impact review finding.
 - Treat `ok: false`, invalid schema, and missing artifacts as retryable failures via `runUnits()`.
 
 ## Reporting rules
@@ -356,6 +360,6 @@ Do not paste every intermediate subagent result into chat.
 
 - **Preflight before fan-out.** Verify cwd is a git worktree, disk has headroom, and worker auth (`gh`/`acli`/`claude` CLIs) resolves before spawning any subprocess — 3 runs once died at creation because cwd was `$HOME`, and a WSL `HOME` redirect broke all worker auth for a day.
 - **Checkpoint eagerly.** Append every completed worker's result to an on-disk checkpoint file at completion time; never let results exist only in orchestrator memory until final synthesis — a 25-agent review run lost 2 confirmed bugs to a session limit at delivery time.
-- **Route models by pre-classified shard size.** Know shard size before dispatch: shards with ≤2 items or mechanical verification stages (re-grep, line-number correction) go to a cheap tier (Sonnet-class); reserve premium models (Opus/Fable-class) for large/ambiguous shards and true adversarial-disprove cycles. The audit measured ~58% of premium-tier tokens going to worker stages a cheap model could handle.
+- **Route models by risk and uncertainty, not shard size alone.** Mechanical scanning and verification go to DeepSeek Flash; one routine consolidated review goes to Sonnet. Use Fable only for a concrete unresolved high-impact decision or disputed High/Critical finding. Never route to Opus. The audit measured ~58% of premium-tier tokens going to worker stages a cheaper model could handle.
 - **Synthesis challenges, never re-derives.** A synthesis/verify stage's prompt must present the prior stage's conclusion and ask it to confirm or falsify with cited evidence — not hand over a raw evidence pack. One synthesis stage burned 132k premium tokens fully re-investigating a conclusion a prior 141k-token stage had already established.
 - **Grant repro permissions up front.** Adversarial-review workers told to reproduce behavior (copy repo to `/tmp` and diff, sandboxed clone, run tests) must be spawned with those commands pre-allowed — audited workers were denied their own required repro steps and silently degraded to static analysis.

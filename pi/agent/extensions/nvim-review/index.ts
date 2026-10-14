@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, join, relative } from "node:path";
+import { join } from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
@@ -13,7 +13,6 @@ function hasCommand(cmd: string): boolean {
   }
 }
 
-const REVIEW_PREFIX_RE = /^\s*(?:#\s*)?REVIEW(?::|\s+)\s?(.*)$/;
 const MAX_DIFF_BYTES = 1_500_000;
 const MAX_UNTRACKED_FILE_BYTES = 250_000;
 
@@ -41,14 +40,13 @@ interface ChangedFile {
 
 interface ReviewFile {
   reviewPath: string;
-  vimScriptPath: string;
-  firstDiffLine: number;
+  jsonPath: string;
   hasChanges: boolean;
 }
 
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("nvim-review", {
-    description: "Review full-context git diffs in nvim/vim and send inline comments back to the agent",
+    description: "Review git changes side by side in nvim and send inline comments back to the agent",
     async handler(args: string, ctx: ReviewContext) {
       await runNvimReview(pi, args, ctx);
     },
@@ -84,18 +82,24 @@ export async function runNvimReview(pi: ExtensionAPI, args: string, ctx: ReviewC
     return;
   }
 
-  const originalReviewContent = readFileSync(review.reviewPath, "utf-8");
-
   const exitCode = await ctx.ui.custom<number | null>((tui, _theme, _kb, done) => {
     tui.stop();
     process.stdout.write("\x1b[2J\x1b[H");
 
-    const command = buildEditorCommand(editor, review.reviewPath, review.vimScriptPath, review.firstDiffLine);
+    const command = buildEditorCommand(editor, review.reviewPath);
     const shell = process.env.SHELL || "/bin/sh";
     const result = spawnSync(shell, ["-lc", command], {
       cwd: ctx.cwd,
       stdio: "inherit",
-      env: process.env,
+      env: {
+        ...process.env,
+        PI_REVIEW_ROOT: ctx.cwd,
+        PI_REVIEW_DIFF: review.reviewPath,
+        PI_REVIEW_JSON: review.jsonPath,
+        PI_REVIEW_SCOPE: parsed.scope,
+        PI_REVIEW_BACKEND: "diffview",
+        PI_REVIEW_DIFFVIEW_ARGS: JSON.stringify(buildDiffviewArgs(parsed)),
+      },
     });
 
     tui.start();
@@ -109,13 +113,13 @@ export async function runNvimReview(pi: ExtensionAPI, args: string, ctx: ReviewC
     return;
   }
 
-  const comments = extractInlineReviewComments(readFileSync(review.reviewPath, "utf-8"), originalReviewContent);
+  const comments = extractReviewCommentsFromJson(review.jsonPath);
   if (!comments.trim()) {
-    ctx.ui.notify(`No REVIEW: comments found. Review saved at ${relative(ctx.cwd, review.reviewPath)}`, "info");
+    ctx.ui.notify("No review comments found", "info");
     return;
   }
 
-  const message = `Please address these inline review comments from my nvim diff review.\n\n${comments.trim()}\n\nReview diff: ${relative(ctx.cwd, review.reviewPath)}`;
+  const message = `Please address these inline review comments from my side-by-side nvim diff review.\n\n${comments.trim()}`;
   if (ctx.isIdle()) {
     pi.sendUserMessage(message);
     ctx.ui.notify("Review comments sent to agent", "success");
@@ -123,6 +127,12 @@ export async function runNvimReview(pi: ExtensionAPI, args: string, ctx: ReviewC
     pi.sendUserMessage(message, { deliverAs: "followUp" });
     ctx.ui.notify("Review comments queued for agent", "info");
   }
+}
+
+function buildDiffviewArgs(parsed: ParsedArgs): string[] {
+  const args = parsed.scope === "staged" ? ["--cached"] : parsed.scope === "all" ? ["HEAD"] : [];
+  if (parsed.paths.length > 0) args.push("--", ...parsed.paths);
+  return args;
 }
 
 function parseArgs(args: string): ParsedArgs {
@@ -159,7 +169,7 @@ function createReviewDiff(cwd: string, parsed: ParsedArgs): ReviewFile {
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const reviewPath = join(reviewDir, `nvim-review-${stamp}.diff`);
-  const vimScriptPath = join(reviewDir, `nvim-review-${stamp}.vim`);
+  const jsonPath = join(reviewDir, `nvim-review-${stamp}.json`);
   const status = safeGit(cwd, ["status", "--short", "-uall"]);
   const changedFiles = getChangedFiles(cwd, parsed.paths, parsed.scope);
   const trackedDiff = collectFullContextDiff(cwd, parsed);
@@ -168,10 +178,9 @@ function createReviewDiff(cwd: string, parsed: ParsedArgs): ReviewFile {
   const hasChanges = Boolean(diff.trim() || changedFiles.length > 0);
 
   const rendered = renderReviewDiff({ cwd, parsed, status, changedFiles, diff });
-  writeFileSync(reviewPath, rendered.content, "utf-8");
-  writeFileSync(vimScriptPath, renderReviewVimScript(), "utf-8");
+  writeFileSync(reviewPath, rendered, "utf-8");
 
-  return { reviewPath, vimScriptPath, firstDiffLine: rendered.firstDiffLine, hasChanges };
+  return { reviewPath, jsonPath, hasChanges };
 }
 
 function collectFullContextDiff(cwd: string, parsed: ParsedArgs): string {
@@ -281,137 +290,41 @@ function matchesPathFilters(filePath: string, filters: string[]): boolean {
   return filters.some((filter) => filePath === filter || filePath.startsWith(`${filter}/`) || filter.startsWith(`${filePath}/`));
 }
 
-function renderReviewDiff(input: { cwd: string; parsed: ParsedArgs; status: string; changedFiles: ChangedFile[]; diff: string }): { content: string; firstDiffLine: number } {
-  const lines: string[] = [];
-  lines.push("# Pi nvim diff review");
-  lines.push("#");
-  lines.push("# This is a full-context diff for the current worktree changes.");
-  lines.push("# Add comments with <leader>c (Space+c unless you already set mapleader), or manually add:");
-  lines.push("# REVIEW: your comment here");
-  lines.push("#");
-  lines.push("# Save and quit. Pi extracts REVIEW comments with nearby file/line context and sends them to the agent.");
-  lines.push("# You can use nvim search/jumps/folds as usual. This file is safe to edit; it is not applied as a patch.");
-  lines.push("#");
-  lines.push(`# cwd: ${input.cwd}`);
-  lines.push(`# generated: ${new Date().toISOString()}`);
-  lines.push(`# scope: ${input.parsed.scope}`);
-  lines.push(`# context: ${input.parsed.contextLines}`);
+function renderReviewDiff(input: { cwd: string; parsed: ParsedArgs; status: string; changedFiles: ChangedFile[]; diff: string }): string {
+  const lines = [
+    "# Pi side-by-side nvim review",
+    `# cwd: ${input.cwd}`,
+    `# generated: ${new Date().toISOString()}`,
+    `# scope: ${input.parsed.scope}`,
+    `# context: ${input.parsed.contextLines}`,
+  ];
   if (input.parsed.paths.length > 0) lines.push(`# paths: ${input.parsed.paths.join(", ")}`);
-  lines.push("#");
   lines.push("# Changed files:");
   if (input.changedFiles.length === 0) lines.push("#   none");
   for (const file of input.changedFiles) lines.push(`#   ${file.status.padEnd(2)} ${file.path}`);
-  lines.push("#");
   lines.push("# Git status:");
   for (const line of (input.status || "clean").trimEnd().split("\n")) lines.push(`#   ${line}`);
-  lines.push("#");
-  lines.push("# ---- diff starts below ----");
-  const firstDiffLine = lines.length + 1;
-  lines.push(input.diff || "# No tracked-file diff for this scope.");
-  lines.push("");
-
-  return { content: lines.join("\n"), firstDiffLine };
+  lines.push("# ---- diff starts below ----", input.diff || "# No tracked-file diff for this scope.", "");
+  return lines.join("\n");
 }
 
-function renderReviewVimScript(): string {
-  return String.raw`
-if !exists("mapleader")
-  let mapleader = " "
-endif
+function extractReviewCommentsFromJson(jsonPath: string): string {
+  if (!existsSync(jsonPath)) return "";
 
-function! PiReviewCommentAt(line1, line2) abort
-  let l:comment = input('Review comment: ')
-  if empty(l:comment)
-    echo 'Pi review comment cancelled'
-    return
-  endif
+  try {
+    const data = JSON.parse(readFileSync(jsonPath, "utf-8"));
+    if (!Array.isArray(data.comments)) return "";
 
-  let l:range = a:line1 == a:line2 ? 'line ' . a:line1 : 'lines ' . a:line1 . '-' . a:line2
-  let l:payload = a:line1 == a:line2 ? l:comment : '[selected diff lines ' . a:line1 . '-' . a:line2 . '] ' . l:comment
-  let l:width = max([42, strdisplaywidth(l:comment) + 6, strdisplaywidth(l:range) + 18])
-  let l:top = '# ┌─ PI REVIEW @ ' . l:range . ' ' . repeat('─', max([1, l:width - strdisplaywidth('┌─ PI REVIEW @ ' . l:range . ' ')]))
-  let l:bottom = '# └' . repeat('─', max([1, l:width - 1]))
-  let l:box = [l:top, '# │ ' . l:comment, '# REVIEW: ' . l:payload, l:bottom]
-  call append(a:line2, l:box)
-  echo 'Pi review comment added. Save and quit (:wq) to send.'
-endfunction
-
-function! PiReviewJump(pattern, flags) abort
-  call search(a:pattern, a:flags)
-  normal! zz
-endfunction
-
-nnoremap <buffer> <leader>c :call PiReviewCommentAt(line('.'), line('.'))<CR>
-xnoremap <buffer> <leader>c :<C-U>call PiReviewCommentAt(line("'<"), line("'>"))<CR>
-nnoremap <buffer> gc :call PiReviewCommentAt(line('.'), line('.'))<CR>
-xnoremap <buffer> gc :<C-U>call PiReviewCommentAt(line("'<"), line("'>"))<CR>
-nnoremap <buffer> ]h :call PiReviewJump('^@@', 'W')<CR>
-nnoremap <buffer> [h :call PiReviewJump('^@@', 'bW')<CR>
-nnoremap <buffer> ]f :call PiReviewJump('^diff --git', 'W')<CR>
-nnoremap <buffer> [f :call PiReviewJump('^diff --git', 'bW')<CR>
-setlocal filetype=diff
-setlocal foldmethod=syntax
-normal! zR
-echo 'Pi review: ]h/[h hunks, ]f/[f files, <leader>c or gc comment, :wq sends.'
-`;
-}
-
-function extractInlineReviewComments(content: string, originalContent = ""): string {
-  const originalReviewLines = new Map<string, number>();
-  for (const line of originalContent.split("\n")) {
-    if (!line.match(REVIEW_PREFIX_RE)) continue;
-    originalReviewLines.set(line, (originalReviewLines.get(line) ?? 0) + 1);
+    return data.comments
+      .filter((comment: { body?: string; resolved?: boolean }) => !comment.resolved && comment.body?.trim())
+      .map((comment: { file?: string; line?: number; body: string }) => {
+        const location = comment.file ? `${comment.file}${comment.line ? `:${comment.line}` : ""}` : "general";
+        return `- ${location}: ${comment.body.trim()}`;
+      })
+      .join("\n");
+  } catch {
+    return "";
   }
-
-  const comments: string[] = [];
-  let currentFile = "";
-  let newLine: number | undefined;
-  let pendingFileFromDiff = "";
-
-  for (const rawLine of content.split("\n")) {
-    const commentMatch = rawLine.match(REVIEW_PREFIX_RE);
-    if (commentMatch) {
-      const originalCount = originalReviewLines.get(rawLine) ?? 0;
-      if (originalCount > 0) {
-        originalReviewLines.set(rawLine, originalCount - 1);
-        continue;
-      }
-
-      const text = commentMatch[1]?.trim() ?? "";
-      if (!text) continue;
-      const location = currentFile ? `${currentFile}${newLine !== undefined ? `:${newLine}` : ""}` : "general";
-      comments.push(`- ${location}: ${text}`);
-      continue;
-    }
-
-    const diffMatch = rawLine.match(/^diff --git a\/(.*) b\/(.*)$/);
-    if (diffMatch) {
-      pendingFileFromDiff = diffMatch[2] ?? diffMatch[1] ?? "";
-      currentFile = pendingFileFromDiff;
-      newLine = undefined;
-      continue;
-    }
-
-    const plusFileMatch = rawLine.match(/^\+\+\+ b\/(.*)$/);
-    if (plusFileMatch) {
-      currentFile = plusFileMatch[1] ?? pendingFileFromDiff;
-      newLine = undefined;
-      continue;
-    }
-
-    const hunkMatch = rawLine.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
-    if (hunkMatch) {
-      newLine = Number(hunkMatch[1]);
-      continue;
-    }
-
-    if (newLine === undefined) continue;
-    if (rawLine.startsWith("+++ ") || rawLine.startsWith("--- ")) continue;
-    if (rawLine.startsWith("+")) newLine += 1;
-    else if (rawLine.startsWith(" ")) newLine += 1;
-  }
-
-  return comments.join("\n").trim();
 }
 
 function resolveEditor(): string | undefined {
@@ -422,16 +335,8 @@ function resolveEditor(): string | undefined {
   return undefined;
 }
 
-function buildEditorCommand(editor: string, reviewPath: string, vimScriptPath: string, firstDiffLine: number): string {
-  const firstWord = editor.trim().split(/\s+/)[0] || editor;
-  const base = basename(firstWord);
-  const isVim = base === "nvim" || base === "vim" || base === "vi";
-
-  if (isVim) {
-    return `${editor} -S ${shellQuote(vimScriptPath)} +${firstDiffLine} ${shellQuote(reviewPath)}`;
-  }
-
-  return `${editor} ${shellQuote(reviewPath)}`;
+function buildEditorCommand(editor: string, reviewPath: string): string {
+  return `${editor} -c "lua require('tuliopaim.pi_review').start()" ${shellQuote(reviewPath)}`;
 }
 
 function shellQuote(value: string): string {

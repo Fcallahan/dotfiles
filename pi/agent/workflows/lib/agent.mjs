@@ -9,11 +9,10 @@ const DEFAULT_MODEL = process.env.PI_WF_MODEL ?? "deepseek/deepseek-v4-flash";
 const CHEAP_MODEL = process.env.PI_WF_CHEAP ?? "deepseek/deepseek-v4-flash";
 const DEFAULT_PROVIDER = process.env.PI_WF_PROVIDER ?? "openrouter";
 
-// "opus" (Opus 4.8 alias) is the shipped default smart model. "fable" /
-// "claude-fable-5" also works on this subscription (verified against `claude
-// --model fable`) — set PI_WF_SMART_MODEL=fable to switch every claude-harness
-// role over to it without touching this file.
-const SMART_MODEL = process.env.PI_WF_SMART_MODEL ?? "opus";
+// Generic Claude runs and routine review default to Sonnet. SMART_MODEL remains
+// an explicit Fable escape hatch for consequential planning or adjudication.
+const SMART_MODEL = process.env.PI_WF_SMART_MODEL ?? "fable";
+const REVIEW_MODEL = process.env.PI_WF_REVIEWER_MODEL ?? "sonnet";
 
 // The claude CLI binary, resolved via PATH (same as any other spawned tool
 // in this lib) rather than hardcoded to an install path so this keeps working
@@ -30,7 +29,7 @@ const CLAUDE_BIN = process.env.PI_WF_CLAUDE_BIN ?? "claude";
 // Empirically verified against claude 2.1.211 (see workflow report for the
 // exact before/after transcripts): `--setting-sources ""` excludes ALL THREE
 // sources (user CLAUDE.md + memory, project CLAUDE.md/.claude/settings.json,
-// local .claude/settings.local.json) while subscription auth keeps working —
+// local .claude/settings.local.json) while active Claude CLI auth keeps working —
 // auth lives under ~/.claude but is credential storage, not a "setting
 // source", so it is unaffected by this flag. "" is the narrowest value that
 // satisfies "exclude user-level CLAUDE.md" (it excludes everything).
@@ -119,29 +118,21 @@ export function classifyRateLimited(resultEvent, stderrTailText) {
 const STDERR_TAIL_MAX = 2048;
 
 // --- Role-based routing ------------------------------------------------------
-// Judgment-heavy phases (planning, architecture, review, adversarial
-// verification) get the claude harness + smart model. Volume phases
+// Routine review and refutation use Sonnet. Fable is reserved for one concrete
+// high-impact planning, architecture, or adjudication question. Volume phases
 // (scanning, mapping, classification, bulk mechanical work) stay on the pi
 // harness + cheap/default model. See SKILL.md for routing guidance.
-// planner/architect: lowest-volume, deepest-judgment phases (up-front plan,
-// structural decisions) — default to fable, the deepest-reasoning model,
-// since low volume makes the cost a non-issue. Fable turns can run many
-// minutes, hence the longer per-role timeoutMs (agentForRole's override
-// merge below still lets a caller-supplied timeoutMs win — see spawnAgent).
-// verifier: highest-volume judgment phase (adversarial verification across
-// many candidates) — defaults to sonnet: near-opus judgment quality for this
-// kind of confirm/refute work, cheaper and drawing from a separate rate-limit
-// window than fable/opus, so wide verifier fan-outs don't compete with
-// planner/architect/reviewer for the same subscription budget.
 export const ROLES = {
-  planner:    { harness: "claude", model: process.env.PI_WF_PLANNER_MODEL   ?? "fable", timeoutMs: 30 * 60_000 },
-  architect:  { harness: "claude", model: process.env.PI_WF_ARCHITECT_MODEL ?? "fable", timeoutMs: 30 * 60_000 },
-  reviewer:   { harness: "claude", model: process.env.PI_WF_REVIEWER_MODEL  ?? SMART_MODEL },
-  verifier:   { harness: "claude", model: process.env.PI_WF_VERIFIER_MODEL  ?? "sonnet" },
-  scout:      { harness: "pi", model: CHEAP_MODEL },
-  mapper:     { harness: "pi", model: CHEAP_MODEL },
-  classifier: { harness: "pi", model: CHEAP_MODEL },
-  worker:     { harness: "pi", model: DEFAULT_MODEL },
+  planner:     { harness: "claude", model: process.env.PI_WF_PLANNER_MODEL     ?? "fable", timeoutMs: 30 * 60_000 },
+  architect:   { harness: "claude", model: process.env.PI_WF_ARCHITECT_MODEL   ?? "fable", timeoutMs: 30 * 60_000 },
+  adjudicator: { harness: "claude", model: process.env.PI_WF_ADJUDICATOR_MODEL ?? "fable", timeoutMs: 30 * 60_000 },
+  oracle:      { harness: "claude", model: process.env.PI_WF_ORACLE_MODEL      ?? "fable", timeoutMs: 30 * 60_000 },
+  reviewer:    { harness: "claude", model: REVIEW_MODEL },
+  verifier:    { harness: "claude", model: process.env.PI_WF_VERIFIER_MODEL    ?? "sonnet" },
+  scout:       { harness: "pi", model: CHEAP_MODEL },
+  mapper:      { harness: "pi", model: CHEAP_MODEL },
+  classifier:  { harness: "pi", model: CHEAP_MODEL },
+  worker:      { harness: "pi", model: DEFAULT_MODEL },
 };
 
 // Merge a role's defaults under explicit overrides (overrides win). Unknown
@@ -364,15 +355,15 @@ export function _resetPreflightCache() {
 async function runSpawnAgent({
   prompt,
   harness = "pi",
-  model = harness === "claude" ? SMART_MODEL : DEFAULT_MODEL,
+  model = harness === "claude" ? REVIEW_MODEL : DEFAULT_MODEL,
   tools = "read,bash,edit,write",
   cwd = process.cwd(),
   appendSystemPrompt,
   timeoutMs = 15 * 60_000,
   outputContract = '{ "summary": string, "findings": array, "confidence": number }',
   signal = workflowSignal,
-  // `provider` is a pi-only concept (openrouter/etc routing) — claude auth is
-  // subscription-based, so this is silently ignored for the claude harness.
+  // `provider` is a pi-only concept (openrouter/etc routing). The Claude CLI
+  // owns its active subscription or API-account auth, so this is ignored.
   provider = DEFAULT_PROVIDER,
 }) {
   if (signal.aborted) {
@@ -705,4 +696,4 @@ export async function mapLimit(items, limit, fn) {
   return out;
 }
 
-export { CHEAP_MODEL, SMART_MODEL };
+export { CHEAP_MODEL, REVIEW_MODEL, SMART_MODEL };

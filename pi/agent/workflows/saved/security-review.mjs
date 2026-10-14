@@ -1,16 +1,16 @@
 // ~/.pi/agent/workflows/saved/security-review.mjs
-// Usage: node ~/.pi/agent/workflows/saved/security-review.mjs [--force] [--retries 2] [--concurrency 16] <file...>
+// Usage: node ~/.pi/agent/workflows/saved/security-review.mjs [--force] [--retries 2] [--concurrency 6] <file...>
 import { spawnAgent, CHEAP_MODEL } from "../lib/agent.mjs";
 import { fileFingerprint, parseWorkflowArgs, requireJsonFields, runUnits } from "../lib/runtime.mjs";
 import { writeFile } from "node:fs/promises";
 
 const args = parseWorkflowArgs();
 const files = args.positionals;
-const CONCURRENCY = Number(args.concurrency ?? process.env.PI_WF_CONCURRENCY ?? 16);
+const CONCURRENCY = Number(args.concurrency ?? process.env.PI_WF_CONCURRENCY ?? 6);
 const RETRIES = Number(args.retries ?? process.env.PI_WF_RETRIES ?? 2);
 
 if (files.length === 0) {
-  console.error("Usage: node ~/.pi/agent/workflows/saved/security-review.mjs [--force] [--retries 2] [--concurrency 16] <file...>");
+  console.error("Usage: node ~/.pi/agent/workflows/saved/security-review.mjs [--force] [--retries 2] [--concurrency 6] <file...>");
   process.exit(2);
 }
 
@@ -18,6 +18,9 @@ const reviewSchema = requireJsonFields({ summary: "string", findings: "array", c
 const verdictSchema = requireJsonFields({ verdict: "string", reason: "string", confidence: "number" });
 
 // Phase 1 — independent review, one isolated mostly-read-only agent per file.
+// Use this saved workflow only when per-file isolation is the point. For a
+// normal changed-code or PR review, prefer one consolidated reviewer pass over
+// the bounded diff.
 const reviewRun = await runUnits({
   name: "security-review-files",
   task: "Review files for concrete security findings.",

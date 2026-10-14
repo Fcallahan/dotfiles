@@ -69,6 +69,8 @@ export default function question(pi: ExtensionAPI) {
 
 			const allOptions: DisplayOption[] = [...params.options, { label: "Type something.", isOther: true }];
 
+			const label = params.question.trim().split(/\r?\n/, 1)[0].slice(0, 160) || "Answer question";
+			pi.events.emit("herdr:blocked", { active: true, label });
 			const result = await ctx.ui.custom<{ answer: string; wasCustom: boolean; index?: number } | null>(
 				(tui, theme, _kb, done) => {
 					let optionIndex = 0;
@@ -214,7 +216,7 @@ export default function question(pi: ExtensionAPI) {
 						handleInput,
 					};
 				},
-			);
+			).finally(() => pi.events.emit("herdr:blocked", { active: false }));
 
 			// Build simple options list for details
 			const simpleOptions = params.options.map((o) => o.label);

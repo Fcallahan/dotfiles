@@ -18,6 +18,41 @@ Do NOT delegate when:
 
 Use the fewest subagents necessary—normally zero, and otherwise one. Multiple subagents require a clear, stated reason.
 
+## Automatic Routing Gate
+
+Choose the smallest route that can establish correctness. Risk and uncertainty matter more than file count.
+
+- **Direct** — The request is clear, the relevant files can be located directly, the change follows an established pattern, no high-risk category applies, and focused verification can establish correctness. The parent inspects, edits, tests, and finishes without subagents.
+- **Direct + review** — The implementation is clear but the bounded diff affects security, persistence or state transitions, concurrency, database invariants or migrations, destructive automation, or a public/external contract. The parent implements; one fresh Sonnet reviewer inspects the final diff.
+- **Scout + implement + review when warranted** — Use one scout only when the entry point remains unclear after focused local inspection, multiple subsystems may own the behavior, the root cause is still unknown, or broad discovery is genuinely required. The parent or one writer implements. Add the Sonnet review only when the risk gate above applies. Outside the Opus 5.5 Anthropic-key workflow, keep the scout's configured model (currently DeepSeek Flash).
+- **Fable escalation** — Use Fable only for a consequential unresolved architecture decision, conflicting requirements, security/concurrency/data-integrity uncertainty, unknown root cause after a real attempt, or a High/Critical Sonnet finding whose correct resolution remains unclear. Give Fable the concrete disputed question; do not rerun the whole task. When on Anthropic Opus 5.5, do not dispatch to a different provider for escalation: reason in the parent or ask the user before changing the parent model.
+
+### Anthropic Opus 5.5 delegation
+
+When the active parent is `anthropic/claude-opus-5-5`, keep Opus responsible for framing, architecture, implementation decisions, synthesis, and final acceptance. Automatically delegate bounded exploration, multi-file context collection, focused comparisons, or a required consolidated review when the independent handoff is worth its overhead. Use one native Pi child with `model: "anthropic/claude-sonnet-5-5"` explicitly on every launch. For example, use `scout` for an unknown entry point and `reviewer` for a risky final diff. A quick lookup or a clear small edit stays direct; a child must not redo the parent's work merely to spend fewer Opus tokens. Compare total parent-plus-child usage with `/subagent-cost` before claiming savings.
+
+This is a company-credential boundary, not just a cost preference: the Opus routing extension verifies the stored Anthropic API key and native Anthropic endpoint and blocks unverified child routes. Never dispatch an Opus session to DeepSeek, OpenRouter, OpenAI, Claude CLI, or a cross-provider fallback. If Sonnet 5.5 or its verified credential is unavailable, report the blocker; do not switch providers or silently use an inherited model. The guard currently permits single native Sonnet children only; do not launch `workflowScript`, named workflows, dynamic workflows, resumes, or external agents from Opus until their resolved child models can be verified before launch. This guard covers Pi tool dispatch, not arbitrary `bash`/CLI calls or extension-owned RPC; do not use those to bypass it. It verifies the configured stored Anthropic key, but cannot independently establish who owns that key. Non-Anthropic parent sessions retain their usual routing; other Anthropic parents also inherit the role-level no-fallback/scout-tool restrictions in `settings.json`.
+
+Stop conditions:
+
+- Planning labels and progress tracking do not justify delegation.
+- File count alone does not justify a scout, reviewer, or Fable.
+- Do not launch both a general reviewer and a verifier unless the first review leaves a disputed high-impact finding.
+- Do not repeat review for Low findings. High and Medium fixes receive at most one bounded follow-up review.
+- Use at most one scout and one reviewer by default. Skip scouting when the user supplies exact files, findings, or an approved plan.
+- Do not recreate the full scout → plan → implement → review → verify pipeline unless the user explicitly requests exhaustive orchestration or the Fable escalation criteria apply.
+
+## Artifact-Backed Review Handoffs
+
+Apply these rules to ordinary `pi-subagents` orchestration and `workflowScript` runs, not only explicit dynamic workflows.
+
+- Run one consolidated reviewer over a bounded diff by default. Use multiple reviewers only when distinct risk angles justify them.
+- When a substantial review will feed another subagent, especially `oracle`, give the reviewer an explicit output path and set `outputMode: "file-only"`. Use `.slim/reviews/<slug>-code-review.md` inside a repository, or `/tmp/agent-results/<slug>-code-review.md` only when no repository-local artifact is appropriate.
+- Pass the next agent the review artifact path, exact diff scope or base/head refs, requirements paths, implementation result paths, and verification already run. Do not paste the full review into the next task or reconstruct it from parent-session memory.
+- Tell `oracle` to read the review artifact and inspect the relevant diff directly before reaching a verdict. Keep its normal forked context so inherited decisions remain available, but treat the artifact and current repository state as authoritative review evidence.
+- Use `oracle` only to adjudicate architecture, security, concurrency, data-integrity, unknown-root-cause, or other high-impact findings. Routine actionable review feedback goes directly to one fix worker after parent synthesis.
+- If artifact persistence fails, retain the inline error/output for diagnosis instead of losing the review.
+
 ## Progress Tracking
 
 Use the `progress` tool only when work has at least three meaningful phases and benefits from visible tracking. Do not use it for simple edits, quick questions, informational requests, or conversation.
@@ -68,14 +103,10 @@ agent-installer, agent-organizer, codebase-orchestrator, context-manager, error-
 3. Present the specialist's output to the user
 4. If the task spans multiple domains, coordinate with multiple specialists sequentially
 
-# Response Style
+# Asking Questions in Pi
 
-- Be terse by default. Answer in the fewest words that still solve the request.
-- Prefer bullets over paragraphs.
-- Avoid long explanations unless explicitly asked.
-- Do not restate the user's request or add filler.
-- For code changes, summarize only: files changed, what changed, and any tests run.
-- Ask at most one clarifying question when blocked; otherwise make a reasonable assumption.
+Response style, communication, and when to ask questions are defined in `~/AGENTS.md` ("Understand the Goal First", "Response Style", "Substantive Communication"). Pi-specific rules:
+
 - When asking for a decision or clarification in interactive mode, use the `question` tool instead of printing options in chat.
 - Ask one question at a time. Put the recommended option first and label it `(Recommended)`, include concise option descriptions, and allow the tool's custom response option.
 - Do not present long numbered questionnaires unless the user explicitly requests one.
@@ -110,11 +141,16 @@ agent-installer, agent-organizer, codebase-orchestrator, context-manager, error-
 - Before finishing, review the complete change with fresh eyes. Remove unnecessary code, collapse needless abstractions, and confirm that every changed line contributes to the requested outcome.
 - Optimize for simplicity, not merely line count. Do not compress necessary behavior or make code harder to understand just to produce a smaller diff.
 
-# Substantive Communication
+<!-- codex-sol:begin (managed by scripts/codex-sol.py; remove with `codex-sol.py restore`) -->
+# Codex Sol agent tree
 
-- Keep routine updates and completion summaries terse. Use the richer guidance below for explanations, designs, reviews, documentation, and other substantial artifacts.
-- Write as if explaining the topic to one sharp colleague. Use plain language, natural transitions, and a varied but controlled cadence.
-- Provide concise, decision-relevant rationale: meaningful tradeoffs, concrete observations, genuine uncertainty, and open questions. Do not expose or fabricate private chain-of-thought.
-- Take a clear position when the evidence supports one. Avoid neutral, corporate, or committee-written language, while distinguishing facts, inferences, and recommendations.
-- Ground claims in observed behavior, exact code references, practical examples, or other concrete evidence. Replace vague assurances with explanations a reader can verify.
-- Before publishing substantial prose, perform an editor pass: sharpen the point, improve flow, remove repetition and generic language, and preserve the core message.
+Applies whenever you, the model running this session, are an OpenAI GPT model (for example GPT-6.1 Sol, GPT-6 Sol, GPT-6 Luna, GPT-6 Astra, GPT-5.x), however the session was started. In this Pi setup GPT models run only through the `openai-codex` provider, the user's Codex subscription, so treat that as your provider even though nothing else in this prompt names it. Ignore this section if you are Claude, DeepSeek, Grok, or any other non-GPT model. In a Codex session it takes precedence over the scout-model note in the Automatic Routing Gate; all other Pi tools, project instructions, and approval, test, and review requirements still apply.
+
+The intended root is GPT-6.1 Sol at medium effort. If the parent is a different Codex model or effort, say so once and continue. The root frames work, owns decisions, integrates results, runs focused verification, and may do small well-scoped edits directly. One owner per task; escalate on evidence.
+
+Delegate only on evidence that a bounded handoff helps: `scout` on GPT-6 Luna (high) for uncertain local entry points; `researcher` on GPT-6 Luna (high) for focused lookup using available tools, without promising live web search; `worker` on GPT-6.1 Sol (high) for implementation plus targeted tests. At most one writer per worktree. Do not fan out simply to match the diagram. Use only these roles and `reviewer` by default: other specialists keep their own pinned models, some on other providers, so launch one only when the user asks for it. Children must have explicit boundaries and must not silently switch providers.
+
+An optional independent `reviewer` on GPT-6 Astra (low) is for lower-risk bounded diffs only. For security, persistence/state transitions, database invariants/migrations, concurrency, public contracts, destructive automation, or broad cross-cutting changes, keep the existing consolidated Sonnet/high review requirement. For a required risky review, explicitly launch `reviewer` with `model: "anthropic/claude-sonnet-5-5:high"`; never rely on the default reviewer route (Astra/low). This review exception was approved by the user. If Sonnet is unavailable, stop and ask rather than substituting Astra/low. Observe repository-specific rules for skipping reviews on small low-risk edits.
+
+If a Codex model is unavailable, quota-limited, or fails, pause and report the blocker. Do not fall back to Anthropic or another provider without the user's choice.
+<!-- codex-sol:end -->

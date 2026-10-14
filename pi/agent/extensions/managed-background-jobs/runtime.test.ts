@@ -4,13 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  formatDuration,
+  formatJob,
   getManagedJob,
+  jobElapsedMs,
   promoteForegroundJobs,
   readJobOutput,
   registerForegroundJob,
   restartManagedJob,
   startManagedJob,
   stopManagedJob,
+  waitForManagedJob,
 } from "./runtime.ts";
 
 async function waitForTerminal(id: string, rootDir: string, timeoutMs = 5_000) {
@@ -135,6 +139,39 @@ test("restart creates a new job owned by the requesting session", async () => {
   }
 });
 
+test("formatDuration renders seconds, minutes, and hours", () => {
+  assert.equal(formatDuration(0), "0s");
+  assert.equal(formatDuration(45_000), "45s");
+  assert.equal(formatDuration(125_000), "2m5s");
+  assert.equal(formatDuration(3_725_000), "1h2m");
+});
+
+test("jobElapsedMs and formatJob report elapsed time for running and finished jobs", async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), "pi-bg-test-"));
+  try {
+    const started = await startManagedJob({
+      launch: { kind: "shell", command: "sleep 1" },
+      cwd: rootDir,
+      rootDir,
+    });
+    const running = await getManagedJob(started.spec.id, rootDir);
+    if (running.state.status === "running" || running.state.status === "starting") {
+      const runningElapsed = jobElapsedMs(running);
+      assert.ok(runningElapsed !== undefined && runningElapsed >= 0);
+      assert.match(formatJob(running), /elapsed=\d+s/);
+    }
+
+    const finished = await waitForTerminal(started.spec.id, rootDir);
+    const finishedElapsed = jobElapsedMs(finished, Date.now() + 60_000);
+    assert.ok(finishedElapsed !== undefined && finishedElapsed >= 0);
+    // Terminal jobs report a fixed "ran" duration that ignores the `now` passed in.
+    assert.equal(jobElapsedMs(finished), finishedElapsed);
+    assert.match(formatJob(finished), /ran=\d+s/);
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
 test("promotes only active foreground managed jobs", async () => {
   const first = registerForegroundJob("job-first");
   const second = registerForegroundJob("job-second");
@@ -143,4 +180,55 @@ test("promotes only active foreground managed jobs", async () => {
   assert.deepEqual(promoteForegroundJobs(), []);
   first.dispose();
   second.dispose();
+});
+
+test("waitForManagedJob returns the terminal job or the running job at timeout", async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), "pi-bg-test-"));
+  try {
+    const quick = await startManagedJob({ launch: { kind: "shell", command: "sleep 0.3" }, cwd: rootDir, rootDir });
+    const done = await waitForManagedJob(quick.spec.id, { timeoutMs: 5_000, rootDir, pollMs: 50 });
+    assert.equal(done.state.status, "completed");
+
+    const slow = await startManagedJob({ launch: { kind: "shell", command: "sleep 30" }, cwd: rootDir, rootDir });
+    const began = Date.now();
+    const pending = await waitForManagedJob(slow.spec.id, { timeoutMs: 300, rootDir, pollMs: 50 });
+    assert.ok(Date.now() - began < 2_000);
+    assert.equal(pending.state.status, "running");
+
+    const controller = new AbortController();
+    controller.abort();
+    const aborted = await waitForManagedJob(slow.spec.id, { timeoutMs: 5_000, rootDir, signal: controller.signal });
+    assert.equal(aborted.state.status, "running");
+    await stopManagedJob(slow.spec.id, { graceSeconds: 1, force: true, rootDir });
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test("notify=false is stored on the job and preserved by restart", async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), "pi-bg-test-"));
+  try {
+    const first = await startManagedJob({ launch: { kind: "shell", command: "sleep 30" }, cwd: rootDir, rootDir, notify: false });
+    assert.equal(first.spec.notify, false);
+    const restarted = await restartManagedJob(first.spec.id, { graceSeconds: 1, force: true, rootDir });
+    assert.equal(restarted.spec.notify, false);
+    await stopManagedJob(restarted.spec.id, { graceSeconds: 1, force: true, rootDir });
+
+    const defaulted = await startManagedJob({ launch: { kind: "shell", command: "true" }, cwd: rootDir, rootDir });
+    assert.equal(defaulted.spec.notify, undefined);
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test("a command that exits non-zero quickly is a failed job, not a startup error", async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), "pi-bg-test-"));
+  try {
+    const started = await startManagedJob({ launch: { kind: "shell", command: "exit 3" }, cwd: rootDir, rootDir });
+    const finished = await waitForTerminal(started.spec.id, rootDir);
+    assert.equal(finished.state.status, "failed");
+    assert.equal(finished.state.exitCode, 3);
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
 });

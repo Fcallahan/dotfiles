@@ -7,12 +7,21 @@ name = "catppuccin"
 # inactive tab labels and other UI that also uses this token. Matching the
 # panel bg (#1e1e2e) hides the border entirely but makes inactive tab names
 # unreadable.
+auto_switch = false
 [theme.custom]
 accent = "#45475a"
 
 [ui]
+# Preserve cursor shapes requested by terminal apps: block in normal mode,
+# vertical bar in insert mode. Herdr's WSL default draws a block itself.
+host_cursor = "native"
+# Keep mouse selections available to Herdr Annotate after releasing the mouse.
+# Copy explicitly with Ctrl+C instead of copying on selection.
+copy_on_select = false
 agent_panel_scope = "all"
 
+agent_panel_sort = "spaces"
+status_indicators = "symbols"
 [keys]
 # Match tmux prefix (ctrl+s).
 prefix = "ctrl+s"
@@ -79,3 +88,69 @@ key = "prefix+shift+f"
 description = "fzf-pick a worktree workspace"
 type = "pane"
 command = "$HOME/dotfiles/scripts/session-worktree --herdr"
+
+# Herdr Annotate (Full). Keep prefix+shift+a for rename; use prefix+shift+y
+# for copying annotations without archiving them.
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "annotate.capture"
+description = "annotate selected terminal text"
+
+[[keys.command]]
+key = "prefix+shift+y"
+type = "plugin_action"
+command = "annotate.copy-context"
+description = "copy annotations as context"
+
+[[keys.command]]
+key = "prefix+ctrl+a"
+type = "plugin_action"
+command = "annotate.copy-archive"
+description = "copy annotations and archive them"
+
+[[keys.command]]
+key = "prefix+ctrl+v"
+type = "plugin_action"
+command = "annotate.paste-archive"
+description = "paste annotations into the agent prompt and archive them"
+
+[[keys.command]]
+key = "prefix+shift+s"
+type = "plugin_action"
+command = "annotate.send-archive"
+description = "send annotations to the agent and archive them"
+
+[[keys.command]]
+key = "prefix+m"
+type = "plugin_action"
+command = "annotate.manage"
+description = "manage annotations"
+
+[[keys.command]]
+key = "prefix+o"
+type = "plugin_action"
+command = "annotate.open"
+description = "review documents in this folder"
+
+[[keys.command]]
+key = "prefix+shift+o"
+type = "plugin_action"
+command = "annotate.last"
+description = "review the agent's recent replies"
+
+[[keys.command]]
+key = "prefix+ctrl+o"
+type = "plugin_action"
+command = "annotate.last-newest"
+description = "review the agent's newest reply"
+
+[ui.sidebar.spaces]
+# Highlight only the active space name; leave other theme text unchanged.
+active_workspace_color = "#39ff14"
+
+[ui.sound]
+enabled = true
+
+[ui.toast]
+delivery = "herdr"

@@ -29,7 +29,7 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
   // on the very next LLM call, overriding the stale [PLAN MODE ACTIVE] prompt.
   let midTurnModeChange: Mode | null = null;
 
-  pi.registerFlag("plan", {
+  pi.registerFlag("plan-mode", {
     description: "Start in enforced read-only plan mode",
     type: "boolean",
     default: false,
@@ -65,7 +65,7 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
     ctx.ui.notify("Build mode: full tool access restored.", "info");
   }
 
-  pi.registerCommand("plan", {
+  pi.registerCommand("plan-mode", {
     description: "Enter enforced read-only plan mode",
     handler: async (_args, ctx) => enterPlan(ctx),
   });
@@ -106,7 +106,7 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
     handler: toggleMode,
   });
 
-  pi.registerShortcut(Key.ctrlAlt("p"), {
+  pi.registerShortcut(Key.ctrlAlt("b"), {
     description: "Toggle plan/build mode (fallback when Shift+Tab is eaten by terminal)",
     handler: toggleMode,
   });
@@ -203,7 +203,7 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
             : ctx.ui.theme.fg("warning", "BUILD");
           const details = ctx.ui.theme.fg(
             "success",
-            `⇧Tab/Ctrl+Alt+P  (${ctx.model?.provider ?? "unknown"}) ${ctx.model?.id ?? "no-model"}`,
+            `⇧Tab/Ctrl+Alt+B  (${ctx.model?.provider ?? "unknown"}) ${ctx.model?.id ?? "no-model"}`,
           );
           return {
             modelLabel: `${modeLabel} ${details}`,
@@ -218,7 +218,7 @@ export default function planBuildExtension(pi: ExtensionAPI): void {
       .filter((entry: { type: string; customType?: string }) => entry.type === "custom" && entry.customType === "plan-build-mode")
       .pop() as { data?: PersistedState } | undefined;
 
-    mode = pi.getFlag("plan") === true ? "plan" : saved?.data?.mode ?? "build";
+    mode = pi.getFlag("plan-mode") === true ? "plan" : saved?.data?.mode ?? "build";
     toolsBeforePlan = saved?.data?.toolsBeforePlan;
     if (mode === "plan") enterPlan(ctx, false);
     else updateUi(ctx);
