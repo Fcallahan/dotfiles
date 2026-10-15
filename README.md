@@ -81,6 +81,12 @@ See `docs/pi-setup.md` for install/auth/reload and verification details. Do not 
 
 See `dictation/README.md` for setup and usage.
 
+### TaskCapture (Windows hotkeys)
+- `windows/TaskCapture/` — AutoHotkey v2 hotkeys for quick Obsidian todos (`Win+Shift+T`) and timed reminders (`Win+Shift+R`).
+- `windows/TaskCapture/Install-TaskCapture.ps1` — installs to `%USERPROFILE%\scripts\TaskCapture` and adds a Startup shortcut.
+
+See `windows/TaskCapture/README.md` for setup on a new computer.
+
 ### Oh My Zsh custom
 - `zsh/oh-my-zsh-custom/git-worktree-completions.zsh`
 
